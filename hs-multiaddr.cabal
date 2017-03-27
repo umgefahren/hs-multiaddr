@@ -1,0 +1,44 @@
+name:                hs-multiaddr
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/MatrixAI/hs-multiaddr#readme
+license:             BSD3
+license-file:        LICENSE
+author:              CMCDragonkai
+maintainer:          roger.qiu@polyhack.io
+copyright:           Copyright: (c) 2017 Roger Qiu
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Lib, Libby, Multiaddr
+  build-depends:       base >= 4.7 && < 5
+                     , iproute
+  default-language:    Haskell2010
+
+executable matrix-multiaddr-exe
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , text
+                     , filepath
+                     , matrix-multiaddr
+  default-language:    Haskell2010
+
+test-suite matrix-multiaddr-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base
+                     , matrix-multiaddr
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/MatrixAI/hs-multiaddr
