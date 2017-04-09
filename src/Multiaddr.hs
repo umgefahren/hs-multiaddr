@@ -10,176 +10,174 @@ module Multiaddr
     show,
     read,
     -- * As binary packed format
-    -- encode,
-    -- decode,
+    encode,
+    decode,
     -- * Utilities
     -- encapsulate,
     -- decapsulate,
     -- startsWith
   ) where
 
--- make my types generic
-import GHC.Generics (Generic)
+import qualified Text.ParserCombinators.ReadP as Parser
+import qualified Data.Multihash.Digest as MHD
+import qualified Data.Multihash.Base as MHB
+import qualified Data.ByteString as BSStrict
+import qualified Data.ByteString.Char8 as BSStrictChar
+import qualified Data.ByteString.Lazy.Char8 as BSLazyChar
+import qualified Data.ByteString.Base32 as BSBase32
 
--- bring in the combinators and parser
+import GHC.Generics (Generic)
+import System.FilePath (FilePath)
+import Data.Char (isAlphaNum, isDigit)
+import Data.Word (Word16)
+import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6b, toIPv4, toIPv6b)
 import Control.Applicative (many, some, (<|>))
 import Control.Monad (unless, void)
-import Text.ParserCombinators.ReadP (ReadP,
-                                     char,
-                                     string,
-                                     count,
-                                     satisfy,
-                                     readP_to_S,
-                                     readS_to_P)
 
--- types for the addresses
-import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6b, toIPv4, toIPv6b)
-import Data.Char (isAlphaNum)
-import Data.Word (Word16)
-import Data.Text (Text, pack)
-import System.FilePath (FilePath)
-
--- Multiaddr is a record wrapping a list of MultiaddrParts
--- a Multiaddr here is a typed Multiaddr within Haskell
--- in the outside world, there are 2 kinds of Multiaddr
--- a textual human readable version
--- a binary encoded version
--- this library exposes the typed Multiaddr
--- while allowing Multiaddr to be created from
--- human readable text or binary encoded string
 newtype Multiaddr = Multiaddr { parts :: [MultiaddrPart] }
   deriving (Eq, Generic)
 
--- Multiaddr can be showed
 instance Show Multiaddr where
   show (Multiaddr m) = concatMap show m
 
--- Multiaddr can be read
--- Precedence is not important
--- reads is generic, it reads a MultiaddrPart
--- for every part, we read 0 or more slashes as a separator
 instance Read Multiaddr where
-  readsPrec _ = readP_to_S $ do
-    multiParts <- some $ readS_to_P reads
-    many $ char '/'
+  readsPrec _ = Parser.readP_to_S $ do
+    multiParts <- some $ Parser.readS_to_P reads
+    many $ Parser.char '/'
     return $ Multiaddr multiParts
 
--- UNIX works like this /ip4/10.0.0.1/unix/..... the rest of the path is consider the FILE PATH
-
-data MultiaddrPart = IP4   { ip4   :: IPv4 }
-                   | IP6   { ip6   :: IPv6 }
-                   | TCP   { tcp   :: Word16 }
-                   | UDP   { udp   :: Word16 }
-                   | DCCP  { dccp  :: Word16 }
-                   | SCTP  { sctp  :: Word16 }
-                   | ONION { onion :: Onion }
-                   | IPFS  { ipfs  :: Multihash }
-                   | UNIX  { unix  :: FilePath }
-                   | UTP
-                   | UDT
-                   | QUIC
-                   | HTTP
-                   | HTTPS
-                   | WebSockets
-                   | WebSocketsS
+data MultiaddrPart = IP4m   { ip4m   :: IPv4 }
+                   | IP6m   { ip6m   :: IPv6 }
+                   | TCPm   { tcpm   :: Port }
+                   | UDPm   { udpm   :: Port }
+                   | DCCPm  { dccpm  :: Port }
+                   | SCTPm  { sctpm  :: Port }
+                   | ONIONm { onionm :: Onion }
+                   | P2Pm   { p2pm  :: MHD.MultihashDigest }
+                   | UNIXm  { unixm  :: UnixPath }
+                   | UTPm
+                   | UDTm
+                   | QUICm
+                   | HTTPm
+                   | HTTPSm
+                   | WSm
+                   | WSSm
                    deriving (Eq, Generic)
 
 instance Show MultiaddrPart where
-  show (IP4  i)    = "/ip4/"   ++ show i
-  show (IP6  i)    = "/ip6/"   ++ show i
-  show (TCP  p)    = "/tcp/"   ++ show p
-  show (UDP  p)    = "/udp/"   ++ show p
-  show (DCCP p)    = "/dccp/"  ++ show p
-  show (SCTP p)    = "/sctp/"  ++ show p
-  show (ONION h)   = "/onion/" ++ show h
-  show (IPFS h)    = "/ipfs/"  ++ show h
-  show (UNIX p)    = "/unix/"  ++ show p
-  show UTP         = "/utp"
-  show UDT         = "/udt"
-  show QUIC        = "/quic"
-  show HTTP        = "/http"
-  show HTTPS       = "/https"
-  show WebSockets  = "/ws"
-  show WebSocketsS = "/wss"
-
--- a port can be 0  to 65,536
--- which means or character length is up to
--- not exactly
--- although in some cases we can go to...
--- an IPv6 can be
--- fixed length here doesn't quite make sense
--- because it the readS_to_P is generic and matches against the internal type
--- if the internal type is readable, then it's done
+  show (IP4m i)   = "/ip4/"   ++ show i
+  show (IP6m i)   = "/ip6/"   ++ show i
+  show (TCPm p)   = "/tcp/"   ++ show p
+  show (UDPm p)   = "/udp/"   ++ show p
+  show (DCCPm p)  = "/dccp/"  ++ show p
+  show (SCTPm p)  = "/sctp/"  ++ show p
+  show (ONIONm a) = "/onion/" ++ show a
+  show (P2Pm h)   = "/p2p/"   ++ show h
+  show (UNIXm p)  = "/unix/"  ++ show p
+  show UTPm       = "/utp"
+  show UDTm       = "/udt"
+  show QUICm      = "/quic"
+  show HTTPm      = "/http"
+  show HTTPSm     = "/https"
+  show WSm        = "/ws"
+  show WSSm       = "/wss"
 
 instance Read MultiaddrPart where
-  readsPrec _ = readP_to_S $  parseAddr IP4 "ip4"
-                          <|> parseAddr IP6 "ip6"
-                          <|> parseAddr TCP "tcp"
-                          <|> parseAddr UDP "udp"
-                          <|> parseAddr DCCP "dccp"
-                          <|> parseAddr SCTP "sctp"
-                          <|> parseAddr ONION "onion" -- test readability
-                          <|> parseAddr IPFS "ipfs" -- test readability
-                          <|> parseAddr UNIX "unix" -- test readability
-                          <|> parse     UTP "utp"
-                          <|> parse     UDT "udt"
-                          <|> parse     QUIC "quic"
-                          <|> parse     HTTP "http"
-                          <|> parse     HTTPS "https"
-                          <|> parse     WebSockets "ws"
-                          <|> parse     WebSocketsS "wss"
+  readsPrec _ = Parser.readP_to_S $  parseAddr IP4m "ip4"
+                          <|> parseAddr IP6m "ip6"
+                          <|> parseAddr TCPm "tcp"
+                          <|> parseAddr UDPm "udp"
+                          <|> parseAddr DCCPm "dccp"
+                          <|> parseAddr SCTPm "sctp"
+                          <|> parseAddr ONIONm "onion"
+                          <|> parseAddr P2Pm "ipfs"
+                          <|> parseAddr P2Pm "p2p"
+                          <|> parseAddr UNIXm "unix"
+                          <|> parse     UTPm "utp"
+                          <|> parse     UDTm "udt"
+                          <|> parse     QUICm "quic"
+                          <|> parse     HTTPm "http"
+                          <|> parse     HTTPSm "https"
+                          <|> parse     WSm "ws"
+                          <|> parse     WSSm "wss"
 
-parse :: Read a => (a -> MultiaddrPart) -> String -> ReadP MultiaddrPart
+instance Read MHD.MultihashDigest where
+  readsPrec _ = Parser.readP_to_S $ do
+    multihashText <- Parser.munch1 (/= '/')
+    case ((MHB.decode MHB.Base58) (BSLazyChar.pack multihashText)) of
+      Right bs ->
+        case MHD.decode (BSLazyChar.toStrict bs) of
+          Right digest -> return digest
+          otherwise -> Parser.pfail
+      otherwise -> Parser.pfail
+
+parse :: MultiaddrPart -> String -> Parser.ReadP MultiaddrPart
 parse c s = c <$ (protocolHeader s)
 
-parseAddr :: Read a => (a -> MultiaddrPart) -> String -> ReadP MultiaddrPart
+parseAddr :: Read a => (a -> MultiaddrPart) -> String -> Parser.ReadP MultiaddrPart
 parseAddr c s = c <$> (protocolHeader s *> sep *> protocolAddr)
 
-protocolHeader :: String -> ReadP String
-protocolHeader s = sep *> string s
+rangeParse :: Read a => Parser.ReadP a -> Int -> Int -> Parser.ReadP [a]
+rangeParse parse min max = foldr1 (Parser.<++) $
+  fmap (\n -> Parser.count n $ parse) [max, max-1..min]
 
-sep :: ReadP String
-sep = some $ char '/'
+sep :: Parser.ReadP String
+sep = some $ Parser.char '/'
 
-protocolAddr :: Read a => ReadP a
-protocolAddr = readS_to_P reads
+protocolHeader :: String -> Parser.ReadP String
+protocolHeader s = sep *> Parser.string s
 
--- for the purposes of multiaddr port
--- the ports here are only between 1 and 65535
--- anything above or beyond these 2 numbers are disallowed
--- because these represent destination ports
--- port 0 does not exist
-newtype Port = Port {
-  port :: Word16
-  } deriving (Show, Eq, Generic)
+protocolAddr :: Read a => Parser.ReadP a
+protocolAddr = Parser.readS_to_P reads
 
--- recurse from 5
--- this is weird!??
+newtype Port = Port
+  {
+    port :: Word16
+  }
+  deriving (Show, Eq, Generic)
+
+portC :: Int -> Maybe Port
+portC n | n < 1 || n > 65535 = Nothing
+        | otherwise          = Just $ Port (fromIntegral n)
 
 instance Read Port where
-  readsPrec _ = readP_to_S $ do
-    -- should limit the size of digits being read to be a max of 65536
-    -- however I'm not sure how to do count being max
-    -- count is specified exactly atm
-    port <- readS_to_P reads :: ReadP Int
-    if port > 0 && port < 65536 then
-      return $ Port (fromIntegral port)
-    else
-      pfail
+  readsPrec _ = Parser.readP_to_S $ do
+    port <- fmap read $ rangeParse (Parser.satisfy isDigit) 1 5 :: Parser.ReadP Int
+    case portC port of
+      Just p -> return p
+      Nothing -> Parser.pfail
 
-data Onion = Onion {
-  onionHash :: Text,
-  onionPort :: Word16
-  } deriving (Show, Eq, Generic)
+data Onion = Onion
+  {
+    onionHash :: BSStrict.ByteString,
+    onionPort :: Port
+  }
+  deriving (Show, Eq, Generic)
 
--- Multiformats Onion is like this
--- abcdef123456:123
--- apparently the port number must exist
--- 16 alphanumeric
--- so Word16 as well otherwise you can type the Port to be beyond 1 to 65,536
 instance Read Onion where
-  readsPrec _ = readP_to_S $ do
-    onionHash <- count 16 $ satisfy isAlphaNum
-    char ':'
-    onionPort <- readS_to_P reads :: ReadP Word16
-    return $ Onion (pack onionHash) onionPort
+  readsPrec _ = Parser.readP_to_S $ do
+    onionHash <- BSStrictChar.pack <$>
+      (Parser.count 16 $ Parser.satisfy isAlphaNum)
+    case BSBase32.decode onionHash of
+      Right onionHashDecoded -> do
+        Parser.char ':'
+        onionPort <- Parser.readS_to_P reads :: Parser.ReadP Port
+        return $ Onion onionHashDecoded onionPort
+      otherwise -> Parser.pfail
+
+    -- BSBase32.decode gives back an EITHER type
+    -- we need to map an EITHER LEFT into pfail
+    -- and EITHER RIGHT into the result
+    -- Parser.char ':'
+    -- onionPort <- Parser.readS_to_P reads :: Parser.ReadP Port
+    -- return $ Onion onionHash onionPort
+
+newtype UnixPath = UnixPath { path :: FilePath } deriving (Show, Eq, Generic)
+
+instance Read UnixPath where
+  readsPrec _ = Parser.readP_to_S $ do
+    path <- Parser.get >>= \c -> (c:) <$> Parser.manyTill Parser.get Parser.eof
+    return $ UnixPath path
+
+encode = undefined
+decode = undefined

@@ -1,11 +1,11 @@
 module Main where
 
-import Lib
-import Libby
--- import Multiaddr
+import Multiaddr
 
--- parseAddress :: Multiaddr
--- parseAddress = read "/ip4/10.0.0.1/ip4/10.0.0.1/tcp/429"
+parseAddress :: Multiaddr
+parseAddress = read "/ip4/10.0.0.1/ip4/10.0.0.1/tcp/429"
+
+-- we need the test cases
 
 main :: IO ()
-main = lolFunc
+main = putStrLn $ show parseAddress
