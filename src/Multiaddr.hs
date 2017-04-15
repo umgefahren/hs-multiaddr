@@ -6,6 +6,9 @@ module Multiaddr
     -- * As Multiaddr types
     Multiaddr (..),
     MultiaddrPart (..),
+    Port (..),
+    Onion (..),
+    UnixPath (..),
     -- * As a string
     show,
     read,
@@ -13,6 +16,8 @@ module Multiaddr
     encode,
     decode,
     -- * Utilities
+    fromPort,
+    toPort
     -- encapsulate,
     -- decapsulate,
     -- startsWith
@@ -33,6 +38,7 @@ import Data.Word (Word16)
 import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6b, toIPv4, toIPv6b)
 import Control.Applicative (many, some, (<|>))
 import Control.Monad (unless, void)
+import Data.Maybe (maybe, listToMaybe)
 
 newtype Multiaddr = Multiaddr { parts :: [MultiaddrPart] }
   deriving (Eq, Generic)
@@ -84,32 +90,22 @@ instance Show MultiaddrPart where
 
 instance Read MultiaddrPart where
   readsPrec _ = Parser.readP_to_S $  parseAddr IP4m "ip4"
-                          <|> parseAddr IP6m "ip6"
-                          <|> parseAddr TCPm "tcp"
-                          <|> parseAddr UDPm "udp"
-                          <|> parseAddr DCCPm "dccp"
-                          <|> parseAddr SCTPm "sctp"
-                          <|> parseAddr ONIONm "onion"
-                          <|> parseAddr P2Pm "ipfs"
-                          <|> parseAddr P2Pm "p2p"
-                          <|> parseAddr UNIXm "unix"
-                          <|> parse     UTPm "utp"
-                          <|> parse     UDTm "udt"
-                          <|> parse     QUICm "quic"
-                          <|> parse     HTTPm "http"
-                          <|> parse     HTTPSm "https"
-                          <|> parse     WSm "ws"
-                          <|> parse     WSSm "wss"
-
-instance Read MHD.MultihashDigest where
-  readsPrec _ = Parser.readP_to_S $ do
-    multihashText <- Parser.munch1 (/= '/')
-    case ((MHB.decode MHB.Base58) (BSLazyChar.pack multihashText)) of
-      Right bs ->
-        case MHD.decode (BSLazyChar.toStrict bs) of
-          Right digest -> return digest
-          otherwise -> Parser.pfail
-      otherwise -> Parser.pfail
+                                 <|> parseAddr IP6m "ip6"
+                                 <|> parseAddr TCPm "tcp"
+                                 <|> parseAddr UDPm "udp"
+                                 <|> parseAddr DCCPm "dccp"
+                                 <|> parseAddr SCTPm "sctp"
+                                 <|> parseAddr ONIONm "onion"
+                                 <|> parseAddr P2Pm "ipfs"
+                                 <|> parseAddr P2Pm "p2p"
+                                 <|> parseAddr UNIXm "unix"
+                                 <|> parse     UTPm "utp"
+                                 <|> parse     UDTm "udt"
+                                 <|> parse     QUICm "quic"
+                                 <|> parse     HTTPm "http"
+                                 <|> parse     HTTPSm "https"
+                                 <|> parse     WSm "ws"
+                                 <|> parse     WSSm "wss"
 
 parse :: MultiaddrPart -> String -> Parser.ReadP MultiaddrPart
 parse c s = c <$ (protocolHeader s)
@@ -130,20 +126,33 @@ protocolHeader s = sep *> Parser.string s
 protocolAddr :: Read a => Parser.ReadP a
 protocolAddr = Parser.readS_to_P reads
 
+instance Read MHD.MultihashDigest where
+  readsPrec _ = Parser.readP_to_S $ do
+    multihashText <- Parser.munch1 (/= '/')
+    case ((MHB.decode MHB.Base58) (BSLazyChar.pack multihashText)) of
+      Right bs ->
+        case MHD.decode (BSLazyChar.toStrict bs) of
+          Right digest -> return digest
+          otherwise -> Parser.pfail
+      otherwise -> Parser.pfail
+
 newtype Port = Port
   {
     port :: Word16
   }
   deriving (Show, Eq, Generic)
 
-portC :: Int -> Maybe Port
-portC n | n < 1 || n > 65535 = Nothing
-        | otherwise          = Just $ Port (fromIntegral n)
+toPort :: (Integral a, Eq a) => a -> Maybe Port
+toPort n | n < 1 || n > 65535 = Nothing
+         | otherwise          = Just $ Port (fromIntegral n)
+
+fromPort :: Integral a => Port -> a
+fromPort p = fromIntegral (port p)
 
 instance Read Port where
   readsPrec _ = Parser.readP_to_S $ do
     port <- fmap read $ rangeParse (Parser.satisfy isDigit) 1 5 :: Parser.ReadP Int
-    case portC port of
+    case toPort port of
       Just p -> return p
       Nothing -> Parser.pfail
 
@@ -165,19 +174,13 @@ instance Read Onion where
         return $ Onion onionHashDecoded onionPort
       otherwise -> Parser.pfail
 
-    -- BSBase32.decode gives back an EITHER type
-    -- we need to map an EITHER LEFT into pfail
-    -- and EITHER RIGHT into the result
-    -- Parser.char ':'
-    -- onionPort <- Parser.readS_to_P reads :: Parser.ReadP Port
-    -- return $ Onion onionHash onionPort
-
 newtype UnixPath = UnixPath { path :: FilePath } deriving (Show, Eq, Generic)
 
 instance Read UnixPath where
-  readsPrec _ = Parser.readP_to_S $ do
-    path <- Parser.get >>= \c -> (c:) <$> Parser.manyTill Parser.get Parser.eof
-    return $ UnixPath path
+  readsPrec _ = fmap (maybe [] (:[]) . listToMaybe) $ Parser.readP_to_S $ do
+    path <- Parser.many1 Parser.get
+    Parser.manyTill (Parser.char '/') Parser.eof
+    return $ UnixPath $ "/" ++ path
 
 encode = undefined
 decode = undefined
