@@ -23,15 +23,17 @@ module Multiaddr
     -- startsWith
   ) where
 
+import qualified Control.Exception as E
 import qualified Text.ParserCombinators.ReadP as Parser
 import qualified Data.Multihash.Digest as MHD
 import qualified Data.Multihash.Base as MHB
 import qualified Data.ByteString as BSStrict
 import qualified Data.ByteString.Char8 as BSStrictChar
 import qualified Data.ByteString.Lazy.Char8 as BSLazyChar
-import qualified Data.ByteString.Base32 as BSBase32
+import qualified Data.Base32String as BSBase32
 
 import GHC.Generics (Generic)
+import System.IO.Unsafe (unsafePerformIO)
 import System.FilePath (FilePath)
 import Data.Char (isAlphaNum, isDigit)
 import Data.Word (Word16)
@@ -165,14 +167,19 @@ data Onion = Onion
 
 instance Read Onion where
   readsPrec _ = Parser.readP_to_S $ do
-    onionHash <- BSStrictChar.pack <$>
+    (BSBase32.Base32String onionHash) <- BSStrictChar.pack <$>
       (Parser.count 16 $ Parser.satisfy isAlphaNum)
-    case BSBase32.decode onionHash of
-      Right onionHashDecoded -> do
+    let onionHashDecoded =
+          unsafePerformIO $
+            E.catch
+              (return $ BSBase32.Default.toBytes onionHash)
+              (\e -> return BSStrict.empty)
+    if BSStrict.null onionHashDecoded
+      then Parser.pfail
+      else do
         Parser.char ':'
         onionPort <- Parser.readS_to_P reads :: Parser.ReadP Port
         return $ Onion onionHashDecoded onionPort
-      otherwise -> Parser.pfail
 
 newtype UnixPath = UnixPath { path :: FilePath } deriving (Show, Eq, Generic)
 
