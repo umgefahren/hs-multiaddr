@@ -25,22 +25,29 @@ module Multiaddr
 
 import qualified Control.Exception as E
 import qualified Text.ParserCombinators.ReadP as Parser
+
 import qualified Data.Multihash.Digest as MHD
 import qualified Data.Multihash.Base as MHB
+
 import qualified Data.ByteString as BSStrict
 import qualified Data.ByteString.Char8 as BSStrictChar
 import qualified Data.ByteString.Lazy.Char8 as BSLazyChar
-import qualified Data.Base32String as BSBase32
+
+import qualified Codec.Binary.Base32 as Base32
 
 import GHC.Generics (Generic)
 import System.IO.Unsafe (unsafePerformIO)
 import System.FilePath (FilePath)
-import Data.Char (isAlphaNum, isDigit)
-import Data.Word (Word16)
-import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6b, toIPv4, toIPv6b)
 import Control.Applicative (many, some, (<|>))
 import Control.Monad (unless, void)
 import Data.Maybe (maybe, listToMaybe)
+import Data.Bytes.VarInt (VarInt (..))
+import Data.Bytes.Get (getByteString, runGetS)
+import Data.Bytes.Put (runPutS)
+import Data.Bytes.Serial (deserialize, serialize)
+import Data.Char (isAlphaNum, isDigit)
+import Data.Word (Word16)
+import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6b, toIPv4, toIPv6b)
 
 newtype Multiaddr = Multiaddr { parts :: [MultiaddrPart] }
   deriving (Eq, Generic)
@@ -61,6 +68,7 @@ data MultiaddrPart = IP4m   { ip4m   :: IPv4 }
                    | DCCPm  { dccpm  :: Port }
                    | SCTPm  { sctpm  :: Port }
                    | ONIONm { onionm :: Onion }
+                   | IPFSm  { ipfsm :: MHD.MultihashDigest }
                    | P2Pm   { p2pm  :: MHD.MultihashDigest }
                    | UNIXm  { unixm  :: UnixPath }
                    | UTPm
@@ -80,6 +88,7 @@ instance Show MultiaddrPart where
   show (DCCPm p)  = "/dccp/"  ++ show p
   show (SCTPm p)  = "/sctp/"  ++ show p
   show (ONIONm a) = "/onion/" ++ show a
+  show (IPFSm h)  = "/ipfs"   ++ show h
   show (P2Pm h)   = "/p2p/"   ++ show h
   show (UNIXm p)  = "/unix/"  ++ show p
   show UTPm       = "/utp"
@@ -98,7 +107,7 @@ instance Read MultiaddrPart where
                                  <|> parseAddr DCCPm "dccp"
                                  <|> parseAddr SCTPm "sctp"
                                  <|> parseAddr ONIONm "onion"
-                                 <|> parseAddr P2Pm "ipfs"
+                                 <|> parseAddr IPFSm "ipfs"
                                  <|> parseAddr P2Pm "p2p"
                                  <|> parseAddr UNIXm "unix"
                                  <|> parse     UTPm "utp"
@@ -165,21 +174,20 @@ data Onion = Onion
   }
   deriving (Show, Eq, Generic)
 
+-- we need to figure out how to encode Onion...
+-- change port to support 0 port
+-- except onion to not allow port 0
+
 instance Read Onion where
   readsPrec _ = Parser.readP_to_S $ do
-    (BSBase32.Base32String onionHash) <- BSStrictChar.pack <$>
+    onionHash <- BSStrictChar.pack <$>
       (Parser.count 16 $ Parser.satisfy isAlphaNum)
-    let onionHashDecoded =
-          unsafePerformIO $
-            E.catch
-              (return $ BSBase32.Default.toBytes onionHash)
-              (\e -> return BSStrict.empty)
-    if BSStrict.null onionHashDecoded
-      then Parser.pfail
-      else do
+    case Base32.decode onionHash of
+      Right onionHashDecoded -> do
         Parser.char ':'
         onionPort <- Parser.readS_to_P reads :: Parser.ReadP Port
         return $ Onion onionHashDecoded onionPort
+      otherwise -> Parser.pfail
 
 newtype UnixPath = UnixPath { path :: FilePath } deriving (Show, Eq, Generic)
 
@@ -189,5 +197,40 @@ instance Read UnixPath where
     Parser.manyTill (Parser.char '/') Parser.eof
     return $ UnixPath $ "/" ++ path
 
-encode = undefined
+encodeList :: Integral a => [a] -> BSStrict.ByteString
+encodeList = BSStrict.pack . map fromIntegral
+
+-- fixed-width types passed to serialize gets serialised as big endian
+-- multiaddr ports must be encoded big-endian
+encodePort :: Port -> BSStrict.ByteString
+encodePort p = (runPutS . serialize) $ port p
+
+encodeVarInt :: VarInt Int -> BSStrict.ByteString
+encodeVarInt = runPutS . serialize
+
+encodeAddr :: BSStrict.ByteString -> BSStrict.ByteString
+encodeAddr b = BSStrict.append (encodeVarInt . fromIntegral . BSStrict.length $ b) b
+
+toBytes :: MultiaddrPart -> BSStrict.ByteString
+toBytes (IP4m i)   = BSStrict.append (encodeVarInt 4) (encodeList. fromIPv4 $ i)
+toBytes (IP6m i)   = BSStrict.append (encodeVarInt 41) (encodeList . fromIPv6b $ i)
+toBytes (TCPm p)   = BSStrict.append (encodeVarInt 6) (encodePort p)
+toBytes (UDPm p)   = BSStrict.append (encodeVarInt 17) (encodePort p)
+toBytes (DCCPm p)  = BSStrict.append (encodeVarInt 33) (encodePort p)
+toBytes (SCTPm p)  = BSStrict.append (encodeVarInt 132) (encodePort p)
+toBytes (ONIONm o) = BSStrict.concat [(encodeVarInt 444), (encodeAddr $ onionHash o), (encodePort $ onionPort o)]
+toBytes (IPFSm h)   = BSStrict.append (encodeVarInt 421) (encodeAddr $ MHD.digest h)
+toBytes (P2Pm h)   = BSStrict.append (encodeVarInt 420) (encodeAddr $ MHD.digest h)
+toBytes (UNIXm p)  = BSStrict.append (encodeVarInt 400) (encodeAddr $ BSStrictChar.pack $ path p)
+toBytes UTPm       = encodeVarInt 302
+toBytes UDTm       = encodeVarInt 301
+toBytes QUICm      = encodeVarInt 81
+toBytes HTTPm      = encodeVarInt 480
+toBytes HTTPSm     = encodeVarInt 443
+toBytes WSm        = encodeVarInt 477
+toBytes WSSm       = encodeVarInt 478
+
+encode :: Multiaddr -> BSStrict.ByteString
+encode (Multiaddr parts) = BSStrict.concat . map toBytes $ parts
+
 decode = undefined

@@ -4,6 +4,6 @@ with nixpkgs;
 
 haskell.lib.buildStackProject {
   name = "haskell-multiaddr";
-  buildInputs = [ zlib cabal-install ];
+  buildInputs = [ stack zlib cabal-install ];
   inherit ghc;
 }
