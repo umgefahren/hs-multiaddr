@@ -15,17 +15,18 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Multiaddr
+  exposed-modules:     Data.Multiaddr
   build-depends:       base >= 4.7 && < 4.9
-                     , iproute
+                     , bytestring
                      , text
                      , bytes
+                     , sandi
+                     , cereal
+                     , iproute
                      , filepath
                      , multihash
                      , optparse-applicative >= 0.11 && < 0.12
                      , io-streams >= 1.2  && < 1.3
-                     , bytestring
-                     , sandi
   default-language:    Haskell2010
 
 test-suite haskell-multiaddr-test

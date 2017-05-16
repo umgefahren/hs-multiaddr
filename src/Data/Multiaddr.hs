@@ -1,20 +1,20 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Multiaddr
+module Data.Multiaddr
   (
     -- * As Multiaddr types
     Multiaddr (..),
     MultiaddrPart (..),
-    Port (..),
-    Onion (..),
-    UnixPath (..),
+    module Data.Multiaddr.Port,
+    module Data.Multiaddr.Onion,
+    module Data.Multiaddr.UnixPath,
     -- * As a string
     show,
     read,
     -- * As binary packed format
-    encode,
-    decode,
+    module Data.Multiaddr.Encode,
+    module Data.Multiaddr.Decode,
     -- * Utilities
     fromPort,
     toPort
@@ -30,24 +30,18 @@ import qualified Data.Multihash.Digest as MHD
 import qualified Data.Multihash.Base as MHB
 
 import qualified Data.ByteString as BSStrict
-import qualified Data.ByteString.Char8 as BSStrictChar
 import qualified Data.ByteString.Lazy.Char8 as BSLazyChar
 
-import qualified Codec.Binary.Base32 as Base32
-
 import GHC.Generics (Generic)
-import System.IO.Unsafe (unsafePerformIO)
-import System.FilePath (FilePath)
 import Control.Applicative (many, some, (<|>))
 import Control.Monad (unless, void)
-import Data.Maybe (maybe, listToMaybe)
-import Data.Bytes.VarInt (VarInt (..))
-import Data.Bytes.Get (getByteString, runGetS)
-import Data.Bytes.Put (runPutS)
-import Data.Bytes.Serial (deserialize, serialize)
-import Data.Char (isAlphaNum, isDigit)
-import Data.Word (Word16)
-import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6b, toIPv4, toIPv6b)
+import Data.IP (IPv4, IPv6)
+
+import Data.Multiaddr.Port
+import Data.Multiaddr.Onion
+import Data.Multiaddr.UnixPath
+import Data.Multiaddr.Encode
+import Data.Multiaddr.Decode
 
 newtype Multiaddr = Multiaddr { parts :: [MultiaddrPart] }
   deriving (Eq, Generic)
@@ -124,10 +118,6 @@ parse c s = c <$ (protocolHeader s)
 parseAddr :: Read a => (a -> MultiaddrPart) -> String -> Parser.ReadP MultiaddrPart
 parseAddr c s = c <$> (protocolHeader s *> sep *> protocolAddr)
 
-rangeParse :: Read a => Parser.ReadP a -> Int -> Int -> Parser.ReadP [a]
-rangeParse parse min max = foldr1 (Parser.<++) $
-  fmap (\n -> Parser.count n $ parse) [max, max-1..min]
-
 sep :: Parser.ReadP String
 sep = some $ Parser.char '/'
 
@@ -147,90 +137,5 @@ instance Read MHD.MultihashDigest where
           otherwise -> Parser.pfail
       otherwise -> Parser.pfail
 
-newtype Port = Port
-  {
-    port :: Word16
-  }
-  deriving (Show, Eq, Generic)
 
-toPort :: (Integral a, Eq a) => a -> Maybe Port
-toPort n | n < 1 || n > 65535 = Nothing
-         | otherwise          = Just $ Port (fromIntegral n)
 
-fromPort :: Integral a => Port -> a
-fromPort p = fromIntegral (port p)
-
-instance Read Port where
-  readsPrec _ = Parser.readP_to_S $ do
-    port <- fmap read $ rangeParse (Parser.satisfy isDigit) 1 5 :: Parser.ReadP Int
-    case toPort port of
-      Just p -> return p
-      Nothing -> Parser.pfail
-
-data Onion = Onion
-  {
-    onionHash :: BSStrict.ByteString,
-    onionPort :: Port
-  }
-  deriving (Show, Eq, Generic)
-
--- we need to figure out how to encode Onion...
--- change port to support 0 port
--- except onion to not allow port 0
-
-instance Read Onion where
-  readsPrec _ = Parser.readP_to_S $ do
-    onionHash <- BSStrictChar.pack <$>
-      (Parser.count 16 $ Parser.satisfy isAlphaNum)
-    case Base32.decode onionHash of
-      Right onionHashDecoded -> do
-        Parser.char ':'
-        onionPort <- Parser.readS_to_P reads :: Parser.ReadP Port
-        return $ Onion onionHashDecoded onionPort
-      otherwise -> Parser.pfail
-
-newtype UnixPath = UnixPath { path :: FilePath } deriving (Show, Eq, Generic)
-
-instance Read UnixPath where
-  readsPrec _ = fmap (maybe [] (:[]) . listToMaybe) $ Parser.readP_to_S $ do
-    path <- Parser.many1 Parser.get
-    Parser.manyTill (Parser.char '/') Parser.eof
-    return $ UnixPath $ "/" ++ path
-
-encodeList :: Integral a => [a] -> BSStrict.ByteString
-encodeList = BSStrict.pack . map fromIntegral
-
--- fixed-width types passed to serialize gets serialised as big endian
--- multiaddr ports must be encoded big-endian
-encodePort :: Port -> BSStrict.ByteString
-encodePort p = (runPutS . serialize) $ port p
-
-encodeVarInt :: VarInt Int -> BSStrict.ByteString
-encodeVarInt = runPutS . serialize
-
-encodeAddr :: BSStrict.ByteString -> BSStrict.ByteString
-encodeAddr b = BSStrict.append (encodeVarInt . fromIntegral . BSStrict.length $ b) b
-
-toBytes :: MultiaddrPart -> BSStrict.ByteString
-toBytes (IP4m i)   = BSStrict.append (encodeVarInt 4) (encodeList. fromIPv4 $ i)
-toBytes (IP6m i)   = BSStrict.append (encodeVarInt 41) (encodeList . fromIPv6b $ i)
-toBytes (TCPm p)   = BSStrict.append (encodeVarInt 6) (encodePort p)
-toBytes (UDPm p)   = BSStrict.append (encodeVarInt 17) (encodePort p)
-toBytes (DCCPm p)  = BSStrict.append (encodeVarInt 33) (encodePort p)
-toBytes (SCTPm p)  = BSStrict.append (encodeVarInt 132) (encodePort p)
-toBytes (ONIONm o) = BSStrict.concat [(encodeVarInt 444), (encodeAddr $ onionHash o), (encodePort $ onionPort o)]
-toBytes (IPFSm h)   = BSStrict.append (encodeVarInt 421) (encodeAddr $ MHD.digest h)
-toBytes (P2Pm h)   = BSStrict.append (encodeVarInt 420) (encodeAddr $ MHD.digest h)
-toBytes (UNIXm p)  = BSStrict.append (encodeVarInt 400) (encodeAddr $ BSStrictChar.pack $ path p)
-toBytes UTPm       = encodeVarInt 302
-toBytes UDTm       = encodeVarInt 301
-toBytes QUICm      = encodeVarInt 81
-toBytes HTTPm      = encodeVarInt 480
-toBytes HTTPSm     = encodeVarInt 443
-toBytes WSm        = encodeVarInt 477
-toBytes WSSm       = encodeVarInt 478
-
-encode :: Multiaddr -> BSStrict.ByteString
-encode (Multiaddr parts) = BSStrict.concat . map toBytes $ parts
-
-decode = undefined
