@@ -15,7 +15,10 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Data.Multiaddr
+  exposed-modules:     Data.Multiaddr,
+                       Data.Multiaddr.Onion,
+                       Data.Multiaddr.Port,
+                       Data.Multiaddr.UnixPath
   build-depends:       base >= 4.7 && < 4.9
                      , bytestring
                      , text
@@ -37,6 +40,7 @@ test-suite haskell-multiaddr-test
                      , haskell-multiaddr
                      , hspec
                      , iproute
+                     , sandi
                      , bytestring
                      , multihash
                      , either-unwrap

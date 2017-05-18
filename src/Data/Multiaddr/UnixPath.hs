@@ -11,7 +11,8 @@ import GHC.Generics (Generic)
 import System.FilePath (FilePath)
 import Data.Maybe (listToMaybe)
 
-newtype UnixPath = UnixPath { path :: FilePath } deriving (Show, Eq, Generic)
+newtype UnixPath = UnixPath { path :: FilePath }
+                 deriving (Show, Eq, Generic)
 
 instance Read UnixPath where
   readsPrec _ = fmap (maybe [] (:[]) . listToMaybe) $ Parser.readP_to_S $ do

@@ -1,22 +1,31 @@
 import qualified Data.ByteString.Char8 as BSStrictChar
 import qualified Data.ByteString.Lazy.Char8 as BSLazyChar
-import qualified Data.ByteString.Base32 as BSBase32
+import qualified Codec.Binary.Base32 as Base32
 import qualified Data.Multihash.Digest as MHD
 import qualified Data.Multihash.Base as MHB
 
 import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6, toIPv4, toIPv6)
 import Data.Maybe (fromJust)
+import Data.Char (toUpper)
 import Data.Either.Unwrap (fromRight)
 import Control.Exception (evaluate)
 
 import Test.Hspec
-import Multiaddr
+import Data.Multiaddr
 
 parseFail str = it ("should not parse `" ++ str ++ "`") $ do
   evaluate (read str :: Multiaddr) `shouldThrow` anyException
 
 parseSucceed str addr = it ("should parse `" ++ str ++ "`") $ do
   (read str :: Multiaddr) `shouldBe` addr
+
+toIPFSm hash = IPFSm
+              $ fromRight
+              $ MHD.decode
+              $ BSLazyChar.toStrict
+              $ fromRight
+              $ MHB.decode MHB.Base58
+              $ BSLazyChar.pack hash
 
 toP2Pm hash = P2Pm
               $ fromRight
@@ -29,8 +38,8 @@ toP2Pm hash = P2Pm
 toONIONm hash port = ONIONm $
                        Onion
                        (fromRight $
-                         BSBase32.decode $
-                           BSStrictChar.pack hash)
+                         Base32.decode $
+                           BSStrictChar.pack $ map toUpper hash)
                        (fromJust $ toPort port)
 
 main :: IO ()
@@ -101,9 +110,9 @@ main = hspec $ do
     parseSucceed "/tcp/65535" $
       Multiaddr [(TCPm $ fromJust $ toPort 65535)]
     parseSucceed "/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC" $
-      Multiaddr [(toP2Pm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")]
+      Multiaddr [(toIPFSm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")]
     parseSucceed "/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC////" $
-      Multiaddr [(toP2Pm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")]
+      Multiaddr [(toIPFSm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")]
     parseSucceed "/udp/1234/sctp/1234" $
       Multiaddr [(UDPm $ fromJust $ toPort 1234), (SCTPm $ fromJust $ toPort 1234)]
     parseSucceed "/udp/1234/udt" $
@@ -117,7 +126,7 @@ main = hspec $ do
     parseSucceed "/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/tcp/1234" $
       Multiaddr
         [
-          (toP2Pm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"),
+          (toIPFSm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"),
           (TCPm $ fromJust $ toPort 1234)
         ]
     parseSucceed "/ip4/127.0.0.1/udp/1234" $
@@ -149,13 +158,13 @@ main = hspec $ do
       Multiaddr
         [
           (IP4m $ toIPv4 [127,0,0,1]),
-          (toP2Pm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")
+          (toIPFSm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")
         ]
     parseSucceed "/ip4/127.0.0.1/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/tcp/1234" $
       Multiaddr
         [
           (IP4m $ toIPv4 [127,0,0,1]),
-          (toP2Pm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"),
+          (toIPFSm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"),
           (TCPm $ fromJust $ toPort 1234)
         ]
     parseSucceed "/unix/a/b/c/d/e" $
@@ -177,7 +186,7 @@ main = hspec $ do
       Multiaddr
         [
           (IP4m $ toIPv4 [127,0,0,1]),
-          (toP2Pm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"),
+          (toIPFSm "QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"),
           (TCPm $ fromJust $ toPort 1234),
           (UNIXm $ UnixPath "/stdio")
         ]

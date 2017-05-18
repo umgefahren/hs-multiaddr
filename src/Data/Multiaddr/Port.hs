@@ -2,7 +2,9 @@
 
 module Data.Multiaddr.Port
   (
-    Port (..)
+    Port (..),
+    toPort,
+    fromPort
   ) where
 
 import qualified Text.ParserCombinators.ReadP as Parser
