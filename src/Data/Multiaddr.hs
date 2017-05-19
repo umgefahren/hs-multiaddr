@@ -17,9 +17,11 @@ module Data.Multiaddr
     decode,
     -- * Utilities
     protocolPrefix,
-    -- encapsulate,
-    -- decapsulate,
-    -- startsWith
+    encapsulate,
+    decapsulate,
+    findFirstPart,
+    findLastPart,
+    findAllParts
   ) where
 
 import qualified Control.Exception as E
@@ -34,6 +36,7 @@ import GHC.Generics (Generic)
 import Control.Applicative (many, some, (<|>))
 import Control.Monad (unless, void)
 import Control.Arrow (second)
+import Data.List (isPrefixOf, find, filter)
 import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6b, toIPv4, toIPv6b)
 import Data.Bytes.VarInt (VarInt (..))
 import Data.Bytes.Get (getByteString, runGetS)
@@ -266,6 +269,40 @@ decodeList = map fromIntegral . BSStrict.unpack
 
 decodePort :: BSStrict.ByteString -> Port
 decodePort = either error Port . runGetS deserialize
+
+encapsulate :: Multiaddr -> Multiaddr -> Multiaddr
+encapsulate m1 m2 = Multiaddr $ parts m1 ++ parts m2
+
+decapsulate :: Multiaddr -> Multiaddr -> Maybe Multiaddr
+decapsulate (Multiaddr p1) (Multiaddr p2)
+  | isPrefixOf p1 p2 = Just . Multiaddr . drop (length p1) $ p2
+  | otherwise = Nothing
+
+findFirstPart :: MultiaddrPart -> Multiaddr -> Maybe MultiaddrPart
+findFirstPart part addr = find
+                          (\part -> protocolPrefix part == partIndex)
+                          (parts addr)
+  where
+    partIndex = protocolPrefix part
+
+findLastPart :: MultiaddrPart -> Multiaddr -> Maybe MultiaddrPart
+findLastPart part addr = go
+                         (\part -> protocolPrefix part == partIndex)
+                         (parts addr)
+                         Nothing
+  where
+    partIndex = protocolPrefix part
+    go _ [] lastPart = lastPart
+    go pred (p:ps) lastPart
+      | pred p = go pred ps $ Just p
+      | otherwise = go pred ps lastPart
+
+findAllParts :: MultiaddrPart -> Multiaddr -> [MultiaddrPart]
+findAllParts part addr = filter
+                         (\part -> protocolPrefix part == partIndex)
+                         (parts addr)
+  where
+    partIndex = protocolPrefix part
 
 instance Read MHD.MultihashDigest where
   readsPrec _ = Parser.readP_to_S $ do
