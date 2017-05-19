@@ -19,7 +19,10 @@ data Onion = Onion
     onionHash :: {-# UNPACK #-} !BSStrict.ByteString,
     onionPort :: {-# UNPACK #-} !Port
   }
-  deriving (Show, Eq, Generic)
+  deriving (Eq, Generic)
+
+instance Show Onion where
+  show (Onion h p) = show h ++ ":" ++ show p
 
 instance Read Onion where
   readsPrec _ = Parser.readP_to_S $ do

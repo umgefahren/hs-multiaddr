@@ -12,7 +12,10 @@ import System.FilePath (FilePath)
 import Data.Maybe (listToMaybe)
 
 newtype UnixPath = UnixPath { path :: FilePath }
-                 deriving (Show, Eq, Generic)
+                 deriving (Eq, Generic)
+
+instance Show UnixPath where
+  show (UnixPath p) = show p
 
 instance Read UnixPath where
   readsPrec _ = fmap (maybe [] (:[]) . listToMaybe) $ Parser.readP_to_S $ do

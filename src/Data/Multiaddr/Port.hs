@@ -18,7 +18,10 @@ newtype Port = Port
   {
     port :: Word16
   }
-  deriving (Show, Eq, Generic)
+  deriving (Eq, Generic)
+
+instance Show Port where
+  show (Port p) = show p
 
 instance Read Port where
   readsPrec _ = Parser.readP_to_S $ do

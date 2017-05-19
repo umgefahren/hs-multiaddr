@@ -32,6 +32,9 @@ encodeSucceed str bs = it ("should encode `" ++ str ++ "` to `" ++ show bs ++ "`
 decodeSucceed bs str = it ("should decode `" ++ show bs ++ "` to `" ++ str ++ "`") $ do
   (decode $ BSStrict.pack bs) `shouldBe` (Right $ (read str :: Multiaddr))
 
+encapsulateSucceed addr1 addr2 addr3 = it ("should encapsulate `" ++ show addr2 ++ "` with `" ++ show addr1 ++ "`") $ do
+  (encapsulate addr1 addr2) `shouldBe` addr3
+
 toIPFSm hash = IPFSm
               $ fromRight
               $ MHD.decode
@@ -227,3 +230,8 @@ main = hspec $ do
     decodeSucceed [4, 127, 0, 0, 1, 6, 16, 225] "/ip4/127.0.0.1/tcp/4321"
     decodeSucceed [4, 127, 0, 0, 1, 17, 4, 210, 4, 127, 0, 0, 1, 6, 16, 225] "/ip4/127.0.0.1/udp/1234/ip4/127.0.0.1/tcp/4321"
     decodeSucceed [188, 3, 0, 16, 192, 67, 152, 49, 180, 130, 24, 72, 0, 80] "/onion/aaimaq4ygg2iegci:80"
+  describe "Multiaddr encapsulate" $ do
+    encapsulateSucceed
+      (read "/ip4/127.0.0.1" :: Multiaddr)
+      (read "/udp/1234" :: Multiaddr)
+      (read "/ip4/127.0.0.1/udp/1234" :: Multiaddr)
