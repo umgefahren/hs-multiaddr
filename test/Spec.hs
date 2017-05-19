@@ -1,3 +1,4 @@
+import qualified Data.ByteString as BSStrict
 import qualified Data.ByteString.Char8 as BSStrictChar
 import qualified Data.ByteString.Lazy.Char8 as BSLazyChar
 import qualified Codec.Binary.Base32 as Base32
@@ -18,6 +19,18 @@ parseFail str = it ("should not parse `" ++ str ++ "`") $ do
 
 parseSucceed str addr = it ("should parse `" ++ str ++ "`") $ do
   (read str :: Multiaddr) `shouldBe` addr
+
+parseEqual str1 str2 = it ("should be equal `" ++ str1 ++ "` == `" ++ str2) $ do
+  (read str1 :: Multiaddr) `shouldBe` (read str2 :: Multiaddr)
+
+parseNotEqual str1 str2 = it ("should not be equal `" ++ str1 ++ "` /= `" ++ str2) $ do
+  (read str1 :: Multiaddr) `shouldNotBe` (read str2 :: Multiaddr)
+
+encodeSucceed str bs = it ("should encode `" ++ str ++ "` to `" ++ show bs ++ "`") $ do
+  (encode (read str :: Multiaddr)) `shouldBe` (BSStrict.pack bs)
+
+decodeSucceed bs str = it ("should decode `" ++ show bs ++ "` to `" ++ str ++ "`") $ do
+  (decode $ BSStrict.pack bs) `shouldBe` (Right $ (read str :: Multiaddr))
 
 toIPFSm hash = IPFSm
               $ fromRight
@@ -99,6 +112,12 @@ main = hspec $ do
           (toONIONm "timaq4ygg2iegci7" 80),
           (HTTPm)
         ]
+    parseSucceed "/udp/0" $
+      Multiaddr [(UDPm $ fromJust $ toPort 0)]
+    parseSucceed "/tcp/0" $
+      Multiaddr [(TCPm $ fromJust $ toPort 0)]
+    parseSucceed "/sctp/0" $
+      Multiaddr [(SCTPm $ fromJust $ toPort 0)]
     parseSucceed "/udp/1234" $
       Multiaddr [(UDPm $ fromJust $ toPort 1234)]
     parseSucceed "/tcp/1234" $
@@ -134,6 +153,12 @@ main = hspec $ do
         [
           (IP4m $ toIPv4 [127,0,0,1]),
           (UDPm $ fromJust $ toPort 1234)
+        ]
+    parseSucceed "/ip4/127.0.0.1/udp/0" $
+      Multiaddr
+        [
+          (IP4m $ toIPv4 [127,0,0,1]),
+          (UDPm $ fromJust $ toPort 0)
         ]
     parseSucceed "/ip4/127.0.0.1/tcp/1234" $
       Multiaddr
@@ -190,3 +215,15 @@ main = hspec $ do
           (TCPm $ fromJust $ toPort 1234),
           (UNIXm $ UnixPath "/stdio")
         ]
+  describe "Multiaddr equal" $ do
+    parseEqual "/ip4/127.0.0.1/tcp/1234" "/ip4/127.0.0.1/tcp/1234/"
+    parseNotEqual "/ip4/127.0.0.1/udp/1234" "/ip4/127.0.0.1/tcp/1234"
+  describe "Multiaddr encode" $ do
+    encodeSucceed "/ip4/127.0.0.1/udp/1234" [4, 127, 0, 0, 1, 17, 4, 210]
+    encodeSucceed "/ip4/127.0.0.1/tcp/4321" [4, 127, 0, 0, 1, 6, 16, 225]
+    encodeSucceed "/ip4/127.0.0.1/udp/1234/ip4/127.0.0.1/tcp/4321" [4, 127, 0, 0, 1, 17, 4, 210, 4, 127, 0, 0, 1, 6, 16, 225]
+  describe "Multiaddr decode" $ do
+    decodeSucceed [4, 127, 0, 0, 1, 17, 4, 210] "/ip4/127.0.0.1/udp/1234"
+    decodeSucceed [4, 127, 0, 0, 1, 6, 16, 225] "/ip4/127.0.0.1/tcp/4321"
+    decodeSucceed [4, 127, 0, 0, 1, 17, 4, 210, 4, 127, 0, 0, 1, 6, 16, 225] "/ip4/127.0.0.1/udp/1234/ip4/127.0.0.1/tcp/4321"
+    decodeSucceed [188, 3, 0, 16, 192, 67, 152, 49, 180, 130, 24, 72, 0, 80] "/onion/aaimaq4ygg2iegci:80"
