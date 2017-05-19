@@ -1,38 +1,17 @@
-# hs-multiaddr
+Matrix Multi Address
+=========================
 
-[multiaddr](https://github.com/jbenet/multiaddr) implementation in Haskell.
+Here is an experiment to combine the haskell implementation of Multiaddress with the Haskell implementation of Multihash.
 
-multiaddr is a standard way to represent addresses that:
+Along the way, we must learn how stack works.
 
-+ support any standard network protocols
-+ self-describe (include protocols)
-+ have a binary packed format
-+ have a nice string representation
-+ encapsulate well
+-- Multiaddr is a record wrapping a list of MultiaddrParts
+-- a Multiaddr here is a typed Multiaddr within Haskell
+-- in the outside world, there are 2 kinds of Multiaddr
+-- a textual human readable version
+-- a binary encoded version
+-- this library exposes the typed Multiaddr
+-- while allowing Multiaddr to be created from
+-- human readable text or binary encoded string
 
-## Network protocols
-
-The network protocols currently supported by this implementation are:
-
-+ ip4
-+ tcp
-+ udp
-+ dccp
-+ ip6
-+ sctp
-+ udt
-+ utp
-+ ipfs
-+ http
-+ https
-+ websockets
-
-## Documentation
-
-Check out the [documentation](https://ipfs.io/ipfs/QmY1W3wWn6k3Tm6hdfAMghbzikt1rCkwVQ7tnjpN3UgfCL/Network-Multiaddr.html)!
-
-## License
-
-[MIT](LICENSE)
-
-Copyright (c) 2016 Basile Henry
+There is any number of slashes.
