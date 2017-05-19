@@ -17,6 +17,7 @@ module Data.Multiaddr
     decode,
     -- * Utilities
     protocolPrefix,
+    protocolPrefixStr,
     encapsulate,
     decapsulate,
     findFirstPart,
@@ -79,59 +80,6 @@ data MultiaddrPart = IP4m   { ip4m   :: IPv4 }
                    | WSSm
                    deriving (Eq, Generic)
 
-instance Show MultiaddrPart where
-  show (IP4m i)   = "/ip4/"   ++ show i
-  show (IP6m i)   = "/ip6/"   ++ show i
-  show (TCPm p)   = "/tcp/"   ++ show p
-  show (UDPm p)   = "/udp/"   ++ show p
-  show (DCCPm p)  = "/dccp/"  ++ show p
-  show (SCTPm p)  = "/sctp/"  ++ show p
-  show (ONIONm a) = "/onion/" ++ show a
-  show (IPFSm h)  = "/ipfs"   ++ show h
-  show (P2Pm h)   = "/p2p/"   ++ show h
-  show (UNIXm p)  = "/unix/"  ++ show p
-  show UTPm       = "/utp"
-  show UDTm       = "/udt"
-  show QUICm      = "/quic"
-  show HTTPm      = "/http"
-  show HTTPSm     = "/https"
-  show WSm        = "/ws"
-  show WSSm       = "/wss"
-
-instance Read MultiaddrPart where
-  readsPrec _ = Parser.readP_to_S  $  parseAddr IP4m "ip4"
-                                  <|> parseAddr IP6m "ip6"
-                                  <|> parseAddr TCPm "tcp"
-                                  <|> parseAddr UDPm "udp"
-                                  <|> parseAddr DCCPm "dccp"
-                                  <|> parseAddr SCTPm "sctp"
-                                  <|> parseAddr ONIONm "onion"
-                                  <|> parseAddr IPFSm "ipfs"
-                                  <|> parseAddr P2Pm "p2p"
-                                  <|> parseAddr UNIXm "unix"
-                                  <|> parsePrefix UTPm "utp"
-                                  <|> parsePrefix UDTm "udt"
-                                  <|> parsePrefix QUICm "quic"
-                                  <|> parsePrefix HTTPm "http"
-                                  <|> parsePrefix HTTPSm "https"
-                                  <|> parsePrefix WSm "ws"
-                                  <|> parsePrefix WSSm "wss"
-
-parsePrefix :: MultiaddrPart -> String -> Parser.ReadP MultiaddrPart
-parsePrefix c s = c <$ (protocolHeader s)
-
-parseAddr :: Read a => (a -> MultiaddrPart) -> String -> Parser.ReadP MultiaddrPart
-parseAddr c s = c <$> (protocolHeader s *> sep *> protocolAddr)
-
-sep :: Parser.ReadP String
-sep = some $ Parser.char '/'
-
-protocolHeader :: String -> Parser.ReadP String
-protocolHeader s = sep *> Parser.string s
-
-protocolAddr :: Read a => Parser.ReadP a
-protocolAddr = Parser.readS_to_P reads
-
 protocolPrefix :: MultiaddrPart -> VarInt Int
 protocolPrefix (IP4m _)   = 4
 protocolPrefix (IP6m _)   = 41
@@ -150,6 +98,80 @@ protocolPrefix HTTPm      = 480
 protocolPrefix HTTPSm     = 443
 protocolPrefix WSm        = 477
 protocolPrefix WSSm       = 478
+
+protocolPrefixStr :: MultiaddrPart -> String
+protocolPrefixStr (IP4m _)   = "ip4"
+protocolPrefixStr (IP6m _)   = "ip6"
+protocolPrefixStr (TCPm _)   = "tcp"
+protocolPrefixStr (UDPm _)   = "udp"
+protocolPrefixStr (DCCPm _)  = "dccp"
+protocolPrefixStr (SCTPm _)  = "sctp"
+protocolPrefixStr (ONIONm _) = "onion"
+protocolPrefixStr (IPFSm _)  = "ipfs"
+protocolPrefixStr (P2Pm _)   = "p2p"
+protocolPrefixStr (UNIXm _)  = "unix"
+protocolPrefixStr UTPm       = "utp"
+protocolPrefixStr UDTm       = "udt"
+protocolPrefixStr QUICm      = "quic"
+protocolPrefixStr HTTPm      = "http"
+protocolPrefixStr HTTPSm     = "https"
+protocolPrefixStr WSm        = "ws"
+protocolPrefixStr WSSm       = "wss"
+
+instance Show MultiaddrPart where
+  show c@(IP4m a)   = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(IP6m a)   = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(TCPm a)   = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(UDPm a)   = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(DCCPm a)  = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(SCTPm a)  = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(ONIONm a) = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(IPFSm a)  = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(P2Pm a)   = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@(UNIXm a)  = "/" ++ protocolPrefixStr c ++ "/" ++ show a
+  show c@UTPm       = "/" ++ protocolPrefixStr c
+  show c@UDTm       = "/" ++ protocolPrefixStr c
+  show c@QUICm      = "/" ++ protocolPrefixStr c
+  show c@HTTPm      = "/" ++ protocolPrefixStr c
+  show c@HTTPSm     = "/" ++ protocolPrefixStr c
+  show c@WSm        = "/" ++ protocolPrefixStr c
+  show c@WSSm       = "/" ++ protocolPrefixStr c
+
+instance Read MultiaddrPart where
+  readsPrec _ = Parser.readP_to_S  $  parseAddr IP4m
+                                  <|> parseAddr IP6m
+                                  <|> parseAddr TCPm
+                                  <|> parseAddr UDPm
+                                  <|> parseAddr DCCPm
+                                  <|> parseAddr SCTPm
+                                  <|> parseAddr ONIONm
+                                  <|> parseAddr IPFSm
+                                  <|> parseAddr P2Pm
+                                  <|> parseAddr UNIXm
+                                  <|> parsePrefix UTPm
+                                  <|> parsePrefix UDTm
+                                  <|> parsePrefix QUICm
+                                  <|> parsePrefix HTTPm
+                                  <|> parsePrefix HTTPSm
+                                  <|> parsePrefix WSm
+                                  <|> parsePrefix WSSm
+
+parsePrefix :: MultiaddrPart -> Parser.ReadP MultiaddrPart
+parsePrefix c = c <$
+  (protocolHeader $ protocolPrefixStr $ c)
+
+parseAddr :: Read a => (a -> MultiaddrPart) -> Parser.ReadP MultiaddrPart
+parseAddr c = c <$>
+  (protocolHeader (protocolPrefixStr $ c undefined) *> sep *> protocolAddr)
+
+sep :: Parser.ReadP String
+sep = some $ Parser.char '/'
+
+protocolHeader :: String -> Parser.ReadP String
+protocolHeader s = sep *> Parser.string s
+
+protocolAddr :: Read a => Parser.ReadP a
+protocolAddr = Parser.readS_to_P reads
 
 encode :: Multiaddr -> BSStrict.ByteString
 encode (Multiaddr parts) = BSStrict.concat . map encodeAll $ parts
@@ -201,56 +223,46 @@ encodePort p = (runPutS . serialize) $ port p
 decodeAll :: Get MultiaddrPart
 decodeAll  =  decodeAddr
                (IP4m . toIPv4 . decodeList)
-               (protocolPrefix $ IP4m undefined)
                (PartSize 32)
          <|> decodeAddr
                (IP6m . toIPv6b . decodeList)
-               (protocolPrefix $ IP6m undefined)
                (PartSize 128)
          <|> decodeAddr
                (TCPm . decodePort)
-               (protocolPrefix $ TCPm undefined)
                (PartSize 16)
          <|> decodeAddr
                (UDPm . decodePort)
-               (protocolPrefix $ UDPm undefined)
                (PartSize 16)
          <|> decodeAddr
                (DCCPm . decodePort)
-               (protocolPrefix $ DCCPm undefined)
                (PartSize 16)
          <|> decodeAddr
                (SCTPm . decodePort)
-               (protocolPrefix $ SCTPm undefined)
                (PartSize 16)
          <|> decodeAddr
                (ONIONm . uncurry Onion . second decodePort . BSStrict.splitAt 10)
-               (protocolPrefix $ ONIONm undefined)
                (PartSize 96)
          <|> decodeAddr
                (IPFSm . (either error id) . MHD.decode)
-               (protocolPrefix $ IPFSm undefined)
                PartSizeVar
          <|> decodeAddr
                (P2Pm . (either error id) . MHD.decode)
-               (protocolPrefix $ P2Pm undefined)
                PartSizeVar
          <|> decodeAddr
                (UNIXm . UnixPath . BSStrictChar.unpack)
-               (protocolPrefix $ UNIXm undefined)
                PartSizeVar
-         <|> decodePrefix UTPm (protocolPrefix UTPm)
-         <|> decodePrefix UDTm (protocolPrefix UDTm)
-         <|> decodePrefix QUICm (protocolPrefix HTTPm)
-         <|> decodePrefix HTTPSm (protocolPrefix HTTPSm)
-         <|> decodePrefix WSm (protocolPrefix WSm)
-         <|> decodePrefix WSSm (protocolPrefix WSSm)
+         <|> decodePrefix UTPm
+         <|> decodePrefix UDTm
+         <|> decodePrefix QUICm
+         <|> decodePrefix HTTPSm
+         <|> decodePrefix WSm
+         <|> decodePrefix WSSm
 
-decodePrefix :: MultiaddrPart -> VarInt Int -> Get MultiaddrPart
-decodePrefix c i = c <$ (protocolHeaderBytes i)
+decodePrefix :: MultiaddrPart -> Get MultiaddrPart
+decodePrefix c = c <$ (protocolHeaderBytes $ protocolPrefix c)
 
-decodeAddr :: (BSStrict.ByteString -> MultiaddrPart) -> VarInt Int -> MultiaddrPartSize -> Get MultiaddrPart
-decodeAddr c i s = c <$> (protocolHeaderBytes i *> protocolAddrBytes s)
+decodeAddr :: (BSStrict.ByteString -> MultiaddrPart) -> MultiaddrPartSize -> Get MultiaddrPart
+decodeAddr c s = c <$> (protocolHeaderBytes (protocolPrefix $ c undefined) *> protocolAddrBytes s)
 
 protocolHeaderBytes :: VarInt Int -> Get ()
 protocolHeaderBytes i = do
