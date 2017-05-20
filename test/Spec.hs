@@ -32,8 +32,14 @@ encodeSucceed str bs = it ("should encode `" ++ str ++ "` to `" ++ show bs ++ "`
 decodeSucceed bs str = it ("should decode `" ++ show bs ++ "` to `" ++ str ++ "`") $ do
   (decode $ BSStrict.pack bs) `shouldBe` (Right $ (read str :: Multiaddr))
 
-encapsulateSucceed addr1 addr2 addr3 = it ("should encapsulate `" ++ show addr2 ++ "` with `" ++ show addr1 ++ "`") $ do
+encapsulateSucceed addr1 addr2 addr3 = it ("should encapsulate `" ++ show addr2 ++ "` onto `" ++ show addr1 ++ "`") $ do
   (encapsulate addr1 addr2) `shouldBe` addr3
+
+decapsulateSucceed addr1 addr2 addr3 = it ("should decapsulate `" ++ show addr1 ++ "` from `" ++ show addr2 ++ "`") $ do
+  (decapsulate addr1 addr2) `shouldBe` Just addr3
+
+findFirstSucceed part1 part2 addr = it ("should find first `" ++ show part2 ++ "` in `" ++ show addr) $ do
+  (findFirstPart part1 addr) `shouldBe` Just part2
 
 toIPFSm hash = IPFSm
               $ fromRight
@@ -235,3 +241,13 @@ main = hspec $ do
       (read "/ip4/127.0.0.1" :: Multiaddr)
       (read "/udp/1234" :: Multiaddr)
       (read "/ip4/127.0.0.1/udp/1234" :: Multiaddr)
+  describe "Multiaddr decapsulate" $ do
+    decapsulateSucceed
+      (read "/udp/5678" :: Multiaddr)
+      (read "/udp/5678/ip4/127.0.0.1/udp/1234" :: Multiaddr)
+      (read "/ip4/127.0.0.1/udp/1234" :: Multiaddr)
+  describe "Multiaddr find" $ do
+    findFirstSucceed
+      (IP4m undefined)
+      (IP4m $ toIPv4 [127, 0, 0, 1])
+      (read "/ip4/127.0.0.1/utp/tcp/5555/udp/1234/utp/ipfs/QmbHVEEepCi7rn7VL7Exxpd2Ci9NNB6ifvqwhsrbRMgQFP")
