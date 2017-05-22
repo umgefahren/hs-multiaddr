@@ -6,7 +6,7 @@ module Data.Multiaddr.Port
     toString,
     parse,
     encode,
-    decode,
+    parseB,
     toPort,
     fromPort
   ) where
@@ -17,7 +17,6 @@ import qualified Data.ByteString as BSStrict
 import GHC.Generics (Generic)
 import Data.Word (Word16)
 import Data.Char (isDigit)
-import Data.Bytes.Get (getByteString, runGetS)
 import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize, deserialize)
 
@@ -51,5 +50,5 @@ rangeParse parse min max = foldr1 (Parser.<++) $
 encode :: Port -> BSStrict.ByteString
 encode (Port p) = (runPutS . serialize) $ p
 
-decode :: BSStrict.ByteString -> Either String Port
-decode = fmap Port $ runGetS deserialize
+parseB :: BSStrict.ByteString -> Get Port
+parseB = fmap (Port . deserialize) $ VarInt.decodeSize 16

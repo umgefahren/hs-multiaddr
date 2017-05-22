@@ -6,7 +6,7 @@ module Data.Multiaddr.Onion
     toString,
     parse,
     encode,
-    decode
+    parseB
   ) where
 
 import qualified Text.ParserCombinators.ReadP as Parser
@@ -48,13 +48,20 @@ parse = do
     otherwise -> Parser.pfail
 
 encode :: Onion -> BSStrict.ByteString
-encode (Onion h p) = BSStrict.concat [(VarInt.encode 10), h, (Port.encode p)]
+encode (Onion h p) = BSStrict.append h $ Port.encode p
 
-decode :: Get Onion
-decode = do
-  i <- VarInt.decode
-  unless (i == 10) $ fail "Wrong protocol index"
+parseB :: Get Onion
+parseB = do
   b <- VarInt.decodeSize 96
   let (h, p) = BSStrict.splitAt 10 b
   p <- Port.decode p
   return $ Onion h p
+
+-- decode :: Get Onion
+-- decode = do
+--   i <- VarInt.decode
+--   unless (i == 10) $ fail "Wrong protocol index"
+--   b <- VarInt.decodeSize 96
+--   let (h, p) = BSStrict.splitAt 10 b
+--   p <- Port.decode p
+--   return $ Onion h p

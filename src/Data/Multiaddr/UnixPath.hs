@@ -6,7 +6,7 @@ module Data.Multiaddr.UnixPath
     toString,
     parse,
     encode,
-    decode
+    parseB
   ) where
 
 import qualified Text.ParserCombinators.ReadP as Parser
@@ -33,8 +33,8 @@ parse = do
 encode :: UnixPath -> BSStrict.ByteString
 encode (UnixPath p) = VarInt.encodeWith $ BSStrictChar.pack p
 
-decode :: Get UnixPath
-decode = fmap (UnixPath . BSStrictChar.unpack) $ VarInt.decodeSizeVar
+parseB :: Get UnixPath
+parseB = fmap (UnixPath . BSStrictChar.unpack) $ VarInt.decodeSizeVar
 
 -- instance Read UnixPath where
 --   readsPrec _ = fmap (maybe [] (:[]) . listToMaybe) $ Parser.readP_to_S $ do

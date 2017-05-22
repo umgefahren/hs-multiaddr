@@ -1,6 +1,6 @@
 module Data.Multiaddr.VarInt
   (
-
+    VarInt (..),
     encode,
     encodeWith,
     decode,
