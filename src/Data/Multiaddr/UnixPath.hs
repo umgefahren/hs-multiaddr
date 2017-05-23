@@ -17,7 +17,6 @@ import qualified Data.Multiaddr.VarInt as VarInt
 import GHC.Generics (Generic)
 import System.FilePath (FilePath)
 import Data.Serialize.Get (Get)
--- import Data.Maybe (listToMaybe)
 
 newtype UnixPath = UnixPath { path :: FilePath }
                  deriving (Show, Eq, Ord, Generic)
@@ -28,7 +27,6 @@ toString (UnixPath p) = show p
 parse :: Parser.ReadP UnixPath
 parse = do
   path <- Parser.many1 Parser.get
-  Parser.manyTill (Parser.char '/') Parser.eof
   return $ UnixPath $ "/" ++ path
 
 encode :: UnixPath -> BSStrict.ByteString
@@ -37,8 +35,3 @@ encode (UnixPath p) = VarInt.encodeWith $ BSStrictChar.pack p
 parseB :: Get UnixPath
 parseB = fmap (UnixPath . BSStrictChar.unpack) $ VarInt.decodeSizeVar
 
--- instance Read UnixPath where
---   readsPrec _ = fmap (maybe [] (:[]) . listToMaybe) $ Parser.readP_to_S $ do
---     path <- Parser.many1 Parser.get
---     Parser.manyTill (Parser.char '/') Parser.eof
---     return $ UnixPath $ "/" ++ path

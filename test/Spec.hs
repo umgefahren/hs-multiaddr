@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 import qualified Data.ByteString as BSStrict
 import qualified Data.ByteString.Char8 as BSStrictChar
 import qualified Data.ByteString.Lazy.Char8 as BSLazyChar
@@ -14,12 +16,15 @@ import Data.Either (isLeft, isRight)
 
 import Test.Hspec
 import Data.Multiaddr
+import Data.Multiaddr.Onion (Onion (..))
+import Data.Multiaddr.UnixPath (UnixPath (..))
+import Data.Multiaddr.Port (toPort)
 
 parseFail str = it ("should not parse `" ++ str ++ "`") $ do
-  evaluate (toMultiaddr str) `shouldSatisfy` isLeft
+  (toMultiaddr str) `shouldSatisfy` isLeft
 
 parseSucceed str addr = it ("should parse `" ++ str ++ "`") $ do
-  (toMultiaddr str) `shouldBe` addr
+  (toMultiaddr str) `shouldBe` Right addr
 
 parseEqual str1 str2 = it ("should be equal `" ++ str1 ++ "` == `" ++ str2) $ do
   (toMultiaddr str1) `shouldBe` (toMultiaddr str2)
@@ -28,18 +33,18 @@ parseNotEqual str1 str2 = it ("should not be equal `" ++ str1 ++ "` /= `" ++ str
   (toMultiaddr str1) `shouldNotBe` (toMultiaddr str2)
 
 encodeSucceed str bs = it ("should encode `" ++ str ++ "` to `" ++ show bs ++ "`") $ do
-  (encode (toMultiaddr str) `shouldBe` (BSStrict.pack bs)
+  (fmap encode $ toMultiaddr str) `shouldBe` (Right $ BSStrict.pack bs)
 
 decodeSucceed bs str = it ("should decode `" ++ show bs ++ "` to `" ++ str ++ "`") $ do
-  (decode $ BSStrict.pack bs) `shouldBe` (Right $ (toMultiaddr str))
+  (decode $ BSStrict.pack bs) `shouldBe` (toMultiaddr str)
 
-encapsulateSucceed addr1 addr2 addr3 = it ("should encapsulate `" ++ show addr2 ++ "` onto `" ++ show addr1 ++ "`") $ do
+encapsulateSucceed addr1 addr2 addr3 = it ("should encapsulate `" ++ toString addr2 ++ "` onto `" ++ toString addr1 ++ "`") $ do
   (encapsulate addr1 addr2) `shouldBe` addr3
 
-decapsulateSucceed addr1 addr2 addr3 = it ("should decapsulate `" ++ show addr1 ++ "` from `" ++ show addr2 ++ "`") $ do
+decapsulateSucceed addr1 addr2 addr3 = it ("should decapsulate `" ++ toString addr1 ++ "` from `" ++ toString addr2 ++ "`") $ do
   (decapsulate addr1 addr2) `shouldBe` Just addr3
 
-findFirstSucceed part1 part2 addr = it ("should find first `" ++ show part2 ++ "` in `" ++ show addr) $ do
+findFirstSucceed part1 part2 addr = it ("should find first `" ++ show part2 ++ "` in `" ++ toString addr) $ do
   (findFirstPart part1 addr) `shouldBe` Just part2
 
 toIPFSm hash = IPFSm
@@ -239,16 +244,16 @@ main = hspec $ do
     decodeSucceed [188, 3, 0, 16, 192, 67, 152, 49, 180, 130, 24, 72, 0, 80] "/onion/aaimaq4ygg2iegci:80"
   describe "Multiaddr encapsulate" $ do
     encapsulateSucceed
-      (read "/ip4/127.0.0.1" :: Multiaddr)
-      (read "/udp/1234" :: Multiaddr)
-      (read "/ip4/127.0.0.1/udp/1234" :: Multiaddr)
+      ("/ip4/127.0.0.1" :: Multiaddr)
+      ("/udp/1234" :: Multiaddr)
+      ("/ip4/127.0.0.1/udp/1234" :: Multiaddr)
   describe "Multiaddr decapsulate" $ do
     decapsulateSucceed
-      (read "/udp/5678" :: Multiaddr)
-      (read "/udp/5678/ip4/127.0.0.1/udp/1234" :: Multiaddr)
-      (read "/ip4/127.0.0.1/udp/1234" :: Multiaddr)
+      ("/udp/5678" :: Multiaddr)
+      ("/udp/5678/ip4/127.0.0.1/udp/1234" :: Multiaddr)
+      ("/ip4/127.0.0.1/udp/1234" :: Multiaddr)
   describe "Multiaddr find" $ do
     findFirstSucceed
       (IP4m undefined)
       (IP4m $ toIPv4 [127, 0, 0, 1])
-      (read "/ip4/127.0.0.1/utp/tcp/5555/udp/1234/utp/ipfs/QmbHVEEepCi7rn7VL7Exxpd2Ci9NNB6ifvqwhsrbRMgQFP")
+      ("/ip4/127.0.0.1/utp/tcp/5555/udp/1234/utp/ipfs/QmbHVEEepCi7rn7VL7Exxpd2Ci9NNB6ifvqwhsrbRMgQFP" :: Multiaddr)

@@ -16,7 +16,9 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Data.Multiaddr,
+                       Data.MultiaddrPart,
                        Data.Multiaddr.IPFS,
+                       Data.Multiaddr.VarInt
                        Data.Multiaddr.IPv4,
                        Data.Multiaddr.IPv6
                        Data.Multiaddr.Onion,
