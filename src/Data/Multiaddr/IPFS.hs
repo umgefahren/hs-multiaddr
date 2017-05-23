@@ -15,13 +15,15 @@ import qualified Data.Multiaddr.VarInt as VarInt
 import qualified Data.Multihash.Digest as MHD
 import qualified Data.Multihash.Base as MHB
 
+import Data.Serialize.Get (Get)
+
 toString :: MHD.MultihashDigest -> String
-toString =
+toString h =
   BSLazyChar.unpack $
   MHB.encode MHB.Base58
   (BSLazy.fromStrict $ MHD.digest h)
 
-parse :: ReadP MHD.MultihashDigest
+parse :: Parser.ReadP MHD.MultihashDigest
 parse = do
   multihashText <- Parser.munch1 (/= '/')
   case ((MHB.decode MHB.Base58) (BSLazyChar.pack multihashText)) of

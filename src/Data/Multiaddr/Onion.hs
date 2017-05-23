@@ -17,7 +17,8 @@ import qualified Data.Multiaddr.VarInt as VarInt
 import qualified Data.Multiaddr.Port as Port
 
 import GHC.Generics (Generic)
-import Data.Char (isAlphaNum, toUpper)
+import Data.Serialize.Get (Get)
+import Data.Char (isAlphaNum, toUpper, toLower)
 
 data Onion = Onion
   {
@@ -42,7 +43,7 @@ parse = do
     Right onionHashDecoded -> do
       Parser.char ':'
       onionPort <- Port.parse
-      if port onionPort > 0
+      if Port.port onionPort > 0
         then return $ Onion onionHashDecoded onionPort
         else Parser.pfail
     otherwise -> Parser.pfail
@@ -52,16 +53,6 @@ encode (Onion h p) = BSStrict.append h $ Port.encode p
 
 parseB :: Get Onion
 parseB = do
-  b <- VarInt.decodeSize 96
-  let (h, p) = BSStrict.splitAt 10 b
-  p <- Port.decode p
+  h <- VarInt.decodeSize 80
+  p <- Port.parseB
   return $ Onion h p
-
--- decode :: Get Onion
--- decode = do
---   i <- VarInt.decode
---   unless (i == 10) $ fail "Wrong protocol index"
---   b <- VarInt.decodeSize 96
---   let (h, p) = BSStrict.splitAt 10 b
---   p <- Port.decode p
---   return $ Onion h p

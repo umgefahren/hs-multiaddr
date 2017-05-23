@@ -16,15 +16,16 @@ import qualified Data.Multiaddr.VarInt as VarInt
 
 import GHC.Generics (Generic)
 import System.FilePath (FilePath)
+import Data.Serialize.Get (Get)
 -- import Data.Maybe (listToMaybe)
 
 newtype UnixPath = UnixPath { path :: FilePath }
-                 deriving (Eq, Ord, Generic)
+                 deriving (Show, Eq, Ord, Generic)
 
 toString :: UnixPath -> String
 toString (UnixPath p) = show p
 
-parse :: ReadP UnixPath
+parse :: Parser.ReadP UnixPath
 parse = do
   path <- Parser.many1 Parser.get
   Parser.manyTill (Parser.char '/') Parser.eof

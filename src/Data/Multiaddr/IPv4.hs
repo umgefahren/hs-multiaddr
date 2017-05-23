@@ -12,11 +12,12 @@ import qualified Data.ByteString as BSStrict
 import qualified Data.Multiaddr.VarInt as VarInt
 
 import Data.IP (IPv4 (..), fromIPv4, toIPv4)
+import Data.Serialize.Get (Get)
 
 toString :: IPv4 -> String
 toString = show
 
-parse :: ReadP IPv4
+parse :: Parser.ReadP IPv4
 parse = Parser.readS_to_P reads
 
 encode :: IPv4 -> BSStrict.ByteString

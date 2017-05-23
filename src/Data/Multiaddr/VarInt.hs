@@ -14,12 +14,14 @@ import Data.Bytes.VarInt (VarInt (..))
 import Data.Bytes.Get (getByteString)
 import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize, deserialize)
+import Data.Serialize.Get (Get)
 
 encode :: VarInt Int -> BSStrict.ByteString
 encode = runPutS . serialize
 
 encodeWith :: BSStrict.ByteString -> BSStrict.ByteString
-encodeWith b = BSStrict.append (encode . fromIntegral . BSStrict.length b) b
+encodeWith b =
+  BSStrict.append ((encode . fromIntegral . BSStrict.length) b) b
 
 decode :: Get (VarInt Int)
 decode = deserialize

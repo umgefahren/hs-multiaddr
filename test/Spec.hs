@@ -10,27 +10,28 @@ import Data.Maybe (fromJust)
 import Data.Char (toUpper)
 import Data.Either.Unwrap (fromRight)
 import Control.Exception (evaluate)
+import Data.Either (isLeft, isRight)
 
 import Test.Hspec
 import Data.Multiaddr
 
 parseFail str = it ("should not parse `" ++ str ++ "`") $ do
-  evaluate (read str :: Multiaddr) `shouldThrow` anyException
+  evaluate (toMultiaddr str) `shouldSatisfy` isLeft
 
 parseSucceed str addr = it ("should parse `" ++ str ++ "`") $ do
-  (read str :: Multiaddr) `shouldBe` addr
+  (toMultiaddr str) `shouldBe` addr
 
 parseEqual str1 str2 = it ("should be equal `" ++ str1 ++ "` == `" ++ str2) $ do
-  (read str1 :: Multiaddr) `shouldBe` (read str2 :: Multiaddr)
+  (toMultiaddr str1) `shouldBe` (toMultiaddr str2)
 
 parseNotEqual str1 str2 = it ("should not be equal `" ++ str1 ++ "` /= `" ++ str2) $ do
-  (read str1 :: Multiaddr) `shouldNotBe` (read str2 :: Multiaddr)
+  (toMultiaddr str1) `shouldNotBe` (toMultiaddr str2)
 
 encodeSucceed str bs = it ("should encode `" ++ str ++ "` to `" ++ show bs ++ "`") $ do
-  (encode (read str :: Multiaddr)) `shouldBe` (BSStrict.pack bs)
+  (encode (toMultiaddr str) `shouldBe` (BSStrict.pack bs)
 
 decodeSucceed bs str = it ("should decode `" ++ show bs ++ "` to `" ++ str ++ "`") $ do
-  (decode $ BSStrict.pack bs) `shouldBe` (Right $ (read str :: Multiaddr))
+  (decode $ BSStrict.pack bs) `shouldBe` (Right $ (toMultiaddr str))
 
 encapsulateSucceed addr1 addr2 addr3 = it ("should encapsulate `" ++ show addr2 ++ "` onto `" ++ show addr1 ++ "`") $ do
   (encapsulate addr1 addr2) `shouldBe` addr3

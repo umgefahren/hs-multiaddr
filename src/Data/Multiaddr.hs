@@ -1,23 +1,19 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Data.Multiaddr
   (
     -- * As Multiaddr types
     Multiaddr (..),
     MultiaddrPart (..),
-    module Data.Multiaddr.Port,
-    module Data.Multiaddr.Onion,
-    module Data.Multiaddr.UnixPath,
     -- * As a string
-    addrToString,
-    stringToAddr,
+    toString,
+    toMultiaddr,
     -- * As binary packed format
     encode,
     decode,
     -- * Utilities
-    protocolHeaderB,
-    protocolHeaderS,
+    partHdrS,
+    partHdrB,
     encapsulate,
     decapsulate,
     findFirstPart,
@@ -25,64 +21,70 @@ module Data.Multiaddr
     findAllParts
   ) where
 
-import qualified Control.Exception as E
 import qualified Text.ParserCombinators.ReadP as Parser
 import qualified Data.ByteString as BSStrict
-import qualified Data.ByteString.Char8 as BSStrictChar
-import qualified Data.ByteString.Lazy as BSLazy
-import qualified Data.ByteString.Lazy.Char8 as BSLazyChar
-import qualified Data.Multihash.Digest as MHD
-import qualified Data.Multihash.Base as MHB
 
 import GHC.Generics (Generic)
 import Control.Applicative (many, some, (<|>))
-import Control.Monad (unless, void)
-import Control.Arrow (second)
-import Data.List (isPrefixOf, find, filter)
-import Data.IP (IPv4, IPv6, fromIPv4, fromIPv6b, toIPv4, toIPv6b)
-import Data.Bytes.VarInt (VarInt (..))
-import Data.Bytes.Get (getByteString, runGetS)
+import Control.Monad (unless)
+import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)
-import Data.Bytes.Serial (serialize, deserialize)
+import Data.List (isPrefixOf, find, filter)
+
+import qualified Data.Multiaddr.IPFS as IPFS
+import qualified Data.Multiaddr.IPv4 as IPv4
+import qualified Data.Multiaddr.IPv6 as IPv6
+import qualified Data.Multiaddr.Port as Port
+import qualified Data.Multiaddr.Onion as Onion
+import qualified Data.Multiaddr.UnixPath as UnixPath
+import qualified Data.Multiaddr.VarInt as VarInt
+
 import Data.Serialize.Get (Get)
 
 import Data.String
 
-import qualified Data.Multiaddr.Port as Port
-import qualified Data.Multiaddr.Onion as Onion
-import qualified Data.Multiaddr.UnixPath as UnixPath
-import qualified Date.Multiaddr.VarInt as VarInt
-
 newtype Multiaddr = Multiaddr { parts :: [MultiaddrPart] }
-  deriving (Eq, Generic)
-
-addrToString :: Multiaddr -> String
-addrToString (Multiaddr a) = concatMap partToString a
-
-stringToAddr :: String -> Either String Multiaddr
-stringToAddr s =
-  case parseMultiaddr s of
-    [(m, [])] -> Right m
-    otherwise -> Left $ "Error parsing multiaddr " ++ s
-  where
-      many $ Parser.char '/'
-      return $ Multiaddr multiParts
+  deriving (Show, Eq, Generic)
 
 instance IsString Multiaddr where
-  fromString s = case stringToAddr s of
+  fromString s = case toMultiaddr s of
     Right m -> m
     Left e  -> error e
 
-data MultiaddrPart = IP4m   { ip4m   :: IPv4 }
-                   | IP6m   { ip6m   :: IPv6 }
-                   | TCPm   { tcpm   :: Port }
-                   | UDPm   { udpm   :: Port }
-                   | DCCPm  { dccpm  :: Port }
-                   | SCTPm  { sctpm  :: Port }
-                   | ONIONm { onionm :: Onion }
-                   | IPFSm  { ipfsm :: MHD.MultihashDigest }
-                   | P2Pm   { p2pm  :: MHD.MultihashDigest }
-                   | UNIXm  { unixm  :: UnixPath }
+toString :: Multiaddr -> String
+toString (Multiaddr p) = concatMap partToString p
+
+toMultiaddr :: String -> Either String Multiaddr
+toMultiaddr s =
+  case Parser.readP_to_S parse s of
+    [(m, [])] -> Right m
+    otherwise -> Left $ "Error parsing multiaddr " ++ s
+
+parse :: Parser.ReadP Multiaddr
+parse = do
+  multiParts <- some parsePart
+  many $ Parser.char '/'
+  return $ Multiaddr multiParts
+
+encode :: Multiaddr -> BSStrict.ByteString
+encode (Multiaddr p) = BSStrict.concat . map encodePart $ p
+
+decode :: BSStrict.ByteString -> Either String Multiaddr
+decode = runGetS $ parseB
+
+parseB :: Get Multiaddr
+parseB = Multiaddr <$> some parsePartB
+
+data MultiaddrPart = IP4m   { ip4m   :: IPv4.IPv4 }
+                   | IP6m   { ip6m   :: IPv6.IPv6 }
+                   | TCPm   { tcpm   :: Port.Port }
+                   | UDPm   { udpm   :: Port.Port }
+                   | DCCPm  { dccpm  :: Port.Port }
+                   | SCTPm  { sctpm  :: Port.Port }
+                   | ONIONm { onionm :: Onion.Onion }
+                   | IPFSm  { ipfsm :: IPFS.MultihashDigest }
+                   | P2Pm   { p2pm  :: IPFS.MultihashDigest }
+                   | UNIXm  { unixm  :: UnixPath.UnixPath }
                    | UTPm
                    | UDTm
                    | QUICm
@@ -92,229 +94,126 @@ data MultiaddrPart = IP4m   { ip4m   :: IPv4 }
                    | WSSm
                    deriving (Show, Eq, Generic)
 
-protocolHeaderB :: MultiaddrPart -> VarInt Int
-protocolHeaderB (IP4m _)   = 4
-protocolHeaderB (IP6m _)   = 41
-protocolHeaderB (TCPm _)   = 6
-protocolHeaderB (UDPm _)   = 17
-protocolHeaderB (DCCPm _)  = 33
-protocolHeaderB (SCTPm _)  = 132
-protocolHeaderB (ONIONm _) = 444
-protocolHeaderB (IPFSm _)  = 421
-protocolHeaderB (P2Pm _)   = 420
-protocolHeaderB (UNIXm _)  = 400
-protocolHeaderB UTPm       = 302
-protocolHeaderB UDTm       = 301
-protocolHeaderB QUICm      = 81
-protocolHeaderB HTTPm      = 480
-protocolHeaderB HTTPSm     = 443
-protocolHeaderB WSm        = 477
-protocolHeaderB WSSm       = 478
+partHdrB :: MultiaddrPart -> VarInt.VarInt Int
+partHdrB (IP4m _)   = 4
+partHdrB (IP6m _)   = 41
+partHdrB (TCPm _)   = 6
+partHdrB (UDPm _)   = 17
+partHdrB (DCCPm _)  = 33
+partHdrB (SCTPm _)  = 132
+partHdrB (ONIONm _) = 444
+partHdrB (IPFSm _)  = 421
+partHdrB (P2Pm _)   = 420
+partHdrB (UNIXm _)  = 400
+partHdrB UTPm       = 302
+partHdrB UDTm       = 301
+partHdrB QUICm      = 81
+partHdrB HTTPm      = 480
+partHdrB HTTPSm     = 443
+partHdrB WSm        = 477
+partHdrB WSSm       = 478
 
-protocolHeaderS :: MultiaddrPart -> String
-protocolHeaderS (IP4m _)   = "ip4"
-protocolHeaderS (IP6m _)   = "ip6"
-protocolHeaderS (TCPm _)   = "tcp"
-protocolHeaderS (UDPm _)   = "udp"
-protocolHeaderS (DCCPm _)  = "dccp"
-protocolHeaderS (SCTPm _)  = "sctp"
-protocolHeaderS (ONIONm _) = "onion"
-protocolHeaderS (IPFSm _)  = "ipfs"
-protocolHeaderS (P2Pm _)   = "p2p"
-protocolHeaderS (UNIXm _)  = "unix"
-protocolHeaderS UTPm       = "utp"
-protocolHeaderS UDTm       = "udt"
-protocolHeaderS QUICm      = "quic"
-protocolHeaderS HTTPm      = "http"
-protocolHeaderS HTTPSm     = "https"
-protocolHeaderS WSm        = "ws"
-protocolHeaderS WSSm       = "wss"
+partHdrS :: MultiaddrPart -> String
+partHdrS (IP4m _)   = "ip4"
+partHdrS (IP6m _)   = "ip6"
+partHdrS (TCPm _)   = "tcp"
+partHdrS (UDPm _)   = "udp"
+partHdrS (DCCPm _)  = "dccp"
+partHdrS (SCTPm _)  = "sctp"
+partHdrS (ONIONm _) = "onion"
+partHdrS (IPFSm _)  = "ipfs"
+partHdrS (P2Pm _)   = "p2p"
+partHdrS (UNIXm _)  = "unix"
+partHdrS UTPm       = "utp"
+partHdrS UDTm       = "udt"
+partHdrS QUICm      = "quic"
+partHdrS HTTPm      = "http"
+partHdrS HTTPSm     = "https"
+partHdrS WSm        = "ws"
+partHdrS WSSm       = "wss"
 
 partToString :: MultiaddrPart -> String
-partToString c@(IP4m a)   =
-  "/" ++ protocolHeaderS c ++ "/" ++ show a
-partToString c@(IP6m a)   =
-  "/" ++ protocolHeaderS c ++ "/" ++ show a
-partToString c@(TCPm a)   =
-  "/" ++ protocolHeaderS c ++ "/" ++ show a
-partToString c@(UDPm a)   =
-  "/" ++ protocolHeaderS c ++ "/" ++ show a
-partToString c@(DCCPm a)  =
-  "/" ++ protocolHeaderS c ++ "/" ++ show a
-partToString c@(SCTPm a)  =
-  "/" ++ protocolHeaderS c ++ "/" ++ show a
-partToString c@(ONIONm a) =
-  "/" ++ protocolHeaderS c ++ "/" ++ BSBase32
-partToString c@(IPFSm a)  =
-  "/" ++
-  protocolHeaderS c ++
-  "/" ++
-  (BSLazyChar.unpack $ MHB.encode MHB.Base58 (BSLazy.fromStrict $ MHD.digest a))
-partToString c@(P2Pm a)   =
-  "/" ++
-  protocolHeaderS c ++
-  "/" ++
-  (BSLazyChar.unpack $ MHB.encode MHB.Base58 (BSLazy.fromStrict $ MHD.digest a))
-partToString c@(UNIXm a)  =
-  "/" ++ protocolHeaderS c ++ "/" ++ show a
-partToString c@UTPm       =
-  "/" ++ protocolHeaderS c
-partToString c@UDTm       =
-  "/" ++ protocolHeaderS c
-partToString c@QUICm      =
-  "/" ++ protocolHeaderS c
-partToString c@HTTPm      =
-  "/" ++ protocolHeaderS c
-partToString c@HTTPSm     =
-  "/" ++ protocolHeaderS c
-partToString c@WSm        =
-  "/" ++ protocolHeaderS c
-partToString c@WSSm       =
-  "/" ++ protocolHeaderS c
+partToString p = concat ["/", partHdrS p, go p]
+  where
+    go (IP4m i)   = IPv4.toString i
+    go (IP6m i)   = IPv6.toString i
+    go (TCPm p)   = Port.toString p
+    go (UDPm p)   = Port.toString p
+    go (DCCPm p)  = Port.toString p
+    go (SCTPm p)  = Port.toString p
+    go (ONIONm o) = Onion.toString o
+    go (IPFSm h)  = IPFS.toString h
+    go (P2Pm h)   = IPFS.toString h
+    go (UNIXm p)  = UnixPath.toString p
+    go UTPm       = ""
+    go UDTm       = ""
+    go QUICm      = ""
+    go HTTPm      = ""
+    go HTTPSm     = ""
+    go WSm        = ""
+    go WSSm       = ""
 
 parsePart :: Parser.ReadP MultiaddrPart
-parsePart  =  parseAddr IP4m
-          <|> parseAddr IP6m
-          <|> parseAddr TCPm
-          <|> parseAddr UDPm
-          <|> parseAddr DCCPm
-          <|> parseAddr SCTPm
-          <|> parseAddr ONIONm
-          <|> parseAddr IPFSm
-          <|> parseAddr P2Pm
-          <|> parseAddr UNIXm
-          <|> parsePrefix UTPm
-          <|> parsePrefix UDTm
-          <|> parsePrefix QUICm
-          <|> parsePrefix HTTPm
-          <|> parsePrefix HTTPSm
-          <|> parsePrefix WSm
-          <|> parsePrefix WSSm
-
-parseAddr :: Read a => (a -> MultiaddrPart) -> Parser.ReadP MultiaddrPart
-parseAddr c = c <$>
-  (parseProtHeader (protocolHeaderS $ c undefined) *> parseSep *> parseProtAddr)
-  where parseProtAddr = Parser.readS_to_P reads
-
-parsePrefix :: MultiaddrPart -> Parser.ReadP MultiaddrPart
-parsePrefix c = c <$
-  (parseProtHeader $ protocolHeaderS c)
-
-parseSep :: Parser.ReadP String
-parseSep = some $ Parser.char '/'
-
-parseProtHeader :: String -> Parser.ReadP String
-parseProtHeader s = parseSep *> Parser.string s
-
--- ENCODING & DECODING
-
-encode :: Multiaddr -> BSStrict.ByteString
-encode (Multiaddr parts) = BSStrict.concat . map encodeAll $ parts
-
-decode :: BSStrict.ByteString -> Either String Multiaddr
-decode = runGetS $ fmap Multiaddr $ some decodeAll
-
--- size in bits
-data MultiaddrPartSize = PartSizeVar
-                     | PartSize Int
-                       deriving (Eq, Show)
-
-encodeAll :: MultiaddrPart -> BSStrict.ByteString
-encodeAll c@(IP4m i)   = BSStrict.append (encodePrefix c) (encodeList. fromIPv4 $ i)
-encodeAll c@(IP6m i)   = BSStrict.append (encodePrefix c) (encodeList . fromIPv6b $ i)
-encodeAll c@(TCPm p)   = BSStrict.append (encodePrefix c) (encodePort p)
-encodeAll c@(UDPm p)   = BSStrict.append (encodePrefix c) (encodePort p)
-encodeAll c@(DCCPm p)  = BSStrict.append (encodePrefix c) (encodePort p)
-encodeAll c@(SCTPm p)  = BSStrict.append (encodePrefix c) (encodePort p)
-encodeAll c@(ONIONm o) = BSStrict.concat [(encodePrefix c), (encodeAddr $ onionHash o), (encodePort $ onionPort o)]
-encodeAll c@(IPFSm h)  = BSStrict.append (encodePrefix c) (encodeAddr $ MHD.digest h)
-encodeAll c@(P2Pm h)   = BSStrict.append (encodePrefix c) (encodeAddr $ MHD.digest h)
-encodeAll c@(UNIXm p)  = BSStrict.append (encodePrefix c) (encodeAddr $ BSStrictChar.pack $ path p)
-encodeAll c@UTPm       = encodePrefix c
-encodeAll c@UDTm       = encodePrefix c
-encodeAll c@QUICm      = encodePrefix c
-encodeAll c@HTTPm      = encodePrefix c
-encodeAll c@HTTPSm     = encodePrefix c
-encodeAll c@WSm        = encodePrefix c
-encodeAll c@WSSm       = encodePrefix c
-
-encodePrefix :: MultiaddrPart -> BSStrict.ByteString
-encodePrefix = encodeVarInt . protocolHeaderB
-
-encodeAddr :: BSStrict.ByteString -> BSStrict.ByteString
-encodeAddr b = BSStrict.append (encodeVarInt . fromIntegral . BSStrict.length $ b) b
-
-encodeVarInt :: VarInt Int -> BSStrict.ByteString
-encodeVarInt = runPutS . serialize
-
-encodeList :: Integral a => [a] -> BSStrict.ByteString
-encodeList = BSStrict.pack . map fromIntegral
-
--- fixed-width types passed to serialize gets serialised as big endian
--- multiaddr ports must be encoded big-endian
-encodePort :: Port -> BSStrict.ByteString
-encodePort p = (runPutS . serialize) $ port p
-
-decodeAll :: Get MultiaddrPart
-decodeAll  =  decodeAddr
-               (IP4m . toIPv4 . decodeList)
-               (PartSize 32)
-         <|> decodeAddr
-               (IP6m . toIPv6b . decodeList)
-               (PartSize 128)
-         <|> decodeAddr
-               (TCPm . decodePort)
-               (PartSize 16)
-         <|> decodeAddr
-               (UDPm . decodePort)
-               (PartSize 16)
-         <|> decodeAddr
-               (DCCPm . decodePort)
-               (PartSize 16)
-         <|> decodeAddr
-               (SCTPm . decodePort)
-               (PartSize 16)
-         <|> decodeAddr
-               (ONIONm . uncurry Onion . second decodePort . BSStrict.splitAt 10)
-               (PartSize 96)
-         <|> decodeAddr
-               (IPFSm . (either error id) . MHD.decode)
-               PartSizeVar
-         <|> decodeAddr
-               (P2Pm . (either error id) . MHD.decode)
-               PartSizeVar
-         <|> decodeAddr
-               (UNIXm . UnixPath . BSStrictChar.unpack)
-               PartSizeVar
-         <|> decodePrefix UTPm
-         <|> decodePrefix UDTm
-         <|> decodePrefix QUICm
-         <|> decodePrefix HTTPSm
-         <|> decodePrefix WSm
-         <|> decodePrefix WSSm
-
-decodeAddr :: (BSStrict.ByteString -> MultiaddrPart) -> MultiaddrPartSize -> Get MultiaddrPart
-decodeAddr c s = c <$>
-  (parseProtHeaderB (protocolHeaderB $ c undefined) *> parseProtAddrB s)
+parsePart =
+  (IP4m <$> (parseHdr (IP4m undefined) *> parseSep *> IPv4.parse)) <|>
+  (IP6m <$> (parseHdr (IP6m undefined) *> parseSep *> IPv6.parse)) <|>
+  (TCPm <$> (parseHdr (TCPm undefined) *> parseSep *> Port.parse)) <|>
+  (UDPm <$> (parseHdr (UDPm undefined) *> parseSep *> Port.parse)) <|>
+  (DCCPm <$> (parseHdr (DCCPm undefined) *> parseSep *> Port.parse)) <|>
+  (SCTPm <$> (parseHdr (SCTPm undefined) *> parseSep *> Port.parse)) <|>
+  (ONIONm <$> (parseHdr (ONIONm undefined) *> parseSep *> Onion.parse)) <|>
+  (UNIXm <$> (parseHdr (UNIXm undefined) *> parseSep *> UnixPath.parse)) <|>
+  (parseHdr UTPm) <|>
+  (parseHdr UDTm) <|>
+  (parseHdr QUICm) <|>
+  (parseHdr HTTPm) <|>
+  (parseHdr HTTPSm) <|>
+  (parseHdr WSm) <|>
+  (parseHdr WSSm)
   where
-    parseProtAddrB PartSizeVar  = getByteString . fromIntegral =<<
-      (deserialize :: Get (VarInt Int))
-    parseProtAddrB (PartSize n) = getByteString $ fromIntegral $ div n 8
+    parseHdr c = c <$ (parseSep *> Parser.string (partHdrS c))
+    parseSep = some $ Parser.char '/'
 
-decodePrefix :: MultiaddrPart -> Get MultiaddrPart
-decodePrefix c = c <$
-  (parseProtHeaderB $ protocolHeaderB c)
+encodePart :: MultiaddrPart -> BSStrict.ByteString
+encodePart p = BSStrict.append (VarInt.encode $ partHdrB p) (go p)
+  where
+    go (IP4m i)   = IPv4.encode i
+    go (IP6m i)   = IPv6.encode i
+    go (TCPm p)   = Port.encode p
+    go (UDPm p)   = Port.encode p
+    go (DCCPm p)  = Port.encode p
+    go (SCTPm p)  = Port.encode p
+    go (ONIONm o) = Onion.encode o
+    go (UNIXm p)  = UnixPath.encode p
+    go UTPm       = BSStrict.empty
+    go UDTm       = BSStrict.empty
+    go QUICm      = BSStrict.empty
+    go HTTPm      = BSStrict.empty
+    go HTTPSm     = BSStrict.empty
+    go WSm        = BSStrict.empty
+    go WSSm       = BSStrict.empty
 
-parseProtHeaderB :: VarInt Int -> Get ()
-parseProtHeaderB i = do
-  p <- deserialize :: Get (VarInt Int)
-  unless (i == p) $ fail "Wrong protocol index"
-
-decodeList :: Integral a => BSStrict.ByteString -> [a]
-decodeList = map fromIntegral . BSStrict.unpack
-
-decodePort :: BSStrict.ByteString -> Port
-decodePort = either error Port . runGetS deserialize
+parsePartB :: Get MultiaddrPart
+parsePartB =
+  (IP4m <$> (parseHdrB (IP4m undefined) *> IPv4.parseB)) <|>
+  (IP6m <$> (parseHdrB (IP6m undefined) *> IPv6.parseB)) <|>
+  (TCPm <$> (parseHdrB (TCPm undefined) *> Port.parseB)) <|>
+  (UDPm <$> (parseHdrB (UDPm undefined) *> Port.parseB)) <|>
+  (DCCPm <$> (parseHdrB (DCCPm undefined) *> Port.parseB)) <|>
+  (SCTPm <$> (parseHdrB (SCTPm undefined) *> Port.parseB)) <|>
+  (ONIONm <$> (parseHdrB (ONIONm undefined) *> Onion.parseB)) <|>
+  (UNIXm <$> (parseHdrB (UNIXm undefined) *> UnixPath.parseB)) <|>
+  (parseHdrB UTPm) <|>
+  (parseHdrB UDTm) <|>
+  (parseHdrB QUICm) <|>
+  (parseHdrB HTTPm) <|>
+  (parseHdrB HTTPSm) <|>
+  (parseHdrB WSm) <|>
+  (parseHdrB WSSm)
+  where
+    parseHdrB c = c <$ do
+      i <- VarInt.decode
+      unless (i == partHdrB c) $ fail "Wrong protocol index"
 
 -- first address encapsulates the second address
 encapsulate :: Multiaddr -> Multiaddr -> Multiaddr
@@ -327,37 +226,20 @@ decapsulate (Multiaddr p1) (Multiaddr p2)
   | otherwise = Nothing
 
 findFirstPart :: MultiaddrPart -> Multiaddr -> Maybe MultiaddrPart
-findFirstPart part addr = find
-                          (\part -> protocolHeaderB part == partIndex)
-                          (parts addr)
+findFirstPart p a = find (\p' -> partHdrB p' == pI) (parts a)
   where
-    partIndex = protocolHeaderB part
+    pI = partHdrB p
 
 findLastPart :: MultiaddrPart -> Multiaddr -> Maybe MultiaddrPart
-findLastPart part addr = go
-                         (\part -> protocolHeaderB part == partIndex)
-                         (parts addr)
-                         Nothing
+findLastPart p a = go (\p' -> partHdrB p' == pI) (parts a) Nothing
   where
-    partIndex = protocolHeaderB part
+    pI = partHdrB p
     go _ [] lastPart = lastPart
     go pred (p:ps) lastPart
-      | pred p = go pred ps $ Just p
+      | pred p    = go pred ps $ Just p
       | otherwise = go pred ps lastPart
 
 findAllParts :: MultiaddrPart -> Multiaddr -> [MultiaddrPart]
-findAllParts part addr = filter
-                         (\part -> protocolHeaderB part == partIndex)
-                         (parts addr)
+findAllParts p a = filter (\p' -> partHdrB p' == pI) (parts a)
   where
-    partIndex = protocolHeaderB part
-
-instance Read MHD.MultihashDigest where
-  readsPrec _ = Parser.readP_to_S $ do
-    multihashText <- Parser.munch1 (/= '/')
-    case ((MHB.decode MHB.Base58) (BSLazyChar.pack multihashText)) of
-      Right bs ->
-        case MHD.decode (BSLazyChar.toStrict bs) of
-          Right digest -> return digest
-          otherwise -> Parser.pfail
-      otherwise -> Parser.pfail
+    pI = partHdrB p

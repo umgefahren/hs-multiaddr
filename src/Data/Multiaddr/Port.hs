@@ -13,18 +13,21 @@ module Data.Multiaddr.Port
 
 import qualified Text.ParserCombinators.ReadP as Parser
 import qualified Data.ByteString as BSStrict
+import qualified Data.Multiaddr.VarInt as VarInt
 
 import GHC.Generics (Generic)
 import Data.Word (Word16)
 import Data.Char (isDigit)
+import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize, deserialize)
+import Data.Serialize.Get (Get)
 
 newtype Port = Port
   {
     port :: Word16
   }
-  deriving (Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic)
 
 toPort :: (Integral a, Eq a) => a -> Maybe Port
 toPort n | n < 0 || n > 65535 = Nothing
@@ -50,5 +53,7 @@ rangeParse parse min max = foldr1 (Parser.<++) $
 encode :: Port -> BSStrict.ByteString
 encode (Port p) = (runPutS . serialize) $ p
 
-parseB :: BSStrict.ByteString -> Get Port
-parseB = fmap (Port . deserialize) $ VarInt.decodeSize 16
+parseB :: Get Port
+parseB =
+  VarInt.decodeSize 16 >>=
+  (either fail (return . Port) . runGetS deserialize)

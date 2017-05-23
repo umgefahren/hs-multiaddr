@@ -6,7 +6,7 @@ homepage:            https://github.com/MatrixAI/haskell-multiaddr#readme
 license:             BSD3
 license-file:        LICENSE
 author:              CMCDragonkai
-maintainer:          roger.qiu@polyhack.io
+maintainer:          roger.qiu@matrix.ai
 copyright:           Copyright: (c) 2017 Roger Qiu
 category:            Web
 build-type:          Simple
@@ -16,6 +16,9 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Data.Multiaddr,
+                       Data.Multiaddr.IPFS,
+                       Data.Multiaddr.IPv4,
+                       Data.Multiaddr.IPv6
                        Data.Multiaddr.Onion,
                        Data.Multiaddr.Port,
                        Data.Multiaddr.UnixPath
@@ -27,7 +30,6 @@ library
                      , cereal
                      , iproute
                      , filepath
-                     , data-default
                      , multihash
                      , optparse-applicative >= 0.11 && < 0.12
                      , io-streams >= 1.2  && < 1.3
