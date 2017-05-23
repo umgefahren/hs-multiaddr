@@ -1,14 +1,16 @@
-name:                haskell-multiaddr
+name:                multiaddr
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            Multiaddr Library for LibP2P
+description:         Multiaddr is self-describing way to represent addresses that support any standard network protocol.
+                     Multiaddr has a binary packed format, and nice string representation.
+                     It is possible to encapsulate addresses within each other.
 homepage:            https://github.com/MatrixAI/haskell-multiaddr#readme
 license:             BSD3
 license-file:        LICENSE
 author:              CMCDragonkai
 maintainer:          roger.qiu@matrix.ai
 copyright:           Copyright: (c) 2017 Roger Qiu
-category:            Web
+category:            Data
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
@@ -42,7 +44,7 @@ test-suite haskell-multiaddr-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
-                     , haskell-multiaddr
+                     , multiaddr
                      , hspec
                      , iproute
                      , sandi
