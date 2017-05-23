@@ -28,15 +28,12 @@ library
                        Data.Multiaddr.UnixPath
   build-depends:       base >= 4.7 && < 4.9
                      , bytestring
-                     , text
                      , bytes
                      , sandi
                      , cereal
                      , iproute
                      , filepath
                      , multihash
-                     , optparse-applicative >= 0.11 && < 0.12
-                     , io-streams >= 1.2  && < 1.3
   default-language:    Haskell2010
 
 test-suite haskell-multiaddr-test
