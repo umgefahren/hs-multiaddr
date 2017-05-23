@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Data.Multiaddr
   (
@@ -26,16 +28,16 @@ import qualified Data.ByteString as BSStrict
 import qualified Data.MultiaddrPart as P
 
 import GHC.Generics (Generic)
+import Data.Typeable (Typeable)
+import Data.String (IsString, fromString)
 import Control.Applicative (many, some)
 import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)
 import Data.Serialize.Get (Get)
 import Data.List (isPrefixOf, find, filter)
 
-import Data.String
-
 newtype Multiaddr = Multiaddr { parts :: [P.MultiaddrPart] }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Monoid, Generic, Typeable)
 
 instance IsString Multiaddr where
   fromString s = either error id $ toMultiaddr s

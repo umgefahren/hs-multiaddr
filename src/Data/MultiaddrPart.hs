@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Data.MultiaddrPart
   (
@@ -22,6 +23,7 @@ import qualified Data.Multiaddr.Onion as Onion
 import qualified Data.Multiaddr.UnixPath as UnixPath
 
 import GHC.Generics (Generic)
+import Data.Typeable (Typeable)
 import Control.Applicative (some, (<|>))
 import Control.Monad (unless)
 import Data.Serialize.Get (Get)
@@ -43,7 +45,7 @@ data MultiaddrPart = IP4m   { ip4m   :: IPv4.IPv4 }
                    | HTTPSm
                    | WSm
                    | WSSm
-                   deriving (Show, Eq, Generic)
+                   deriving (Show, Eq, Generic, Typeable)
 
 partHdrB :: MultiaddrPart -> VarInt.VarInt Int
 partHdrB (IP4m _)   = 4
