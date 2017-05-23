@@ -1,4 +1,4 @@
-name:                multiaddr
+name:                hs-multiaddr
 version:             0.1.0.0
 synopsis:            Multiaddr Library for LibP2P
 description:         Multiaddr is self-describing way to represent addresses that support any standard network protocol.
@@ -44,7 +44,7 @@ test-suite haskell-multiaddr-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
-                     , multiaddr
+                     , hs-multiaddr
                      , hspec
                      , iproute
                      , sandi
