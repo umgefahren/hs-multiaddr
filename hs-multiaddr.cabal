@@ -1,5 +1,5 @@
 name:                hs-multiaddr
-version:             0.1.1
+version:             0.1.2
 synopsis:            Multiaddr Library for LibP2P
 description:         Multiaddr is self-describing way to represent addresses that support any standard network protocol.
                      Multiaddr has a binary packed format, and nice string representation.
