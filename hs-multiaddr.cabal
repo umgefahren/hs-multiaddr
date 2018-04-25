@@ -2,12 +2,13 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 745db5255b37b1f6164a53aafcbff51ac3059def2d18b8293943c1be523ff7ff
+-- hash: 97e59c09cade2c4a1e7309c30f9342103e5930d54a11d1a30ed5707426f7e3c7
 
 name:           hs-multiaddr
 version:        0.1.4
-synopsis:       Multiaddr Library for LibP2P
+synopsis:       Multiaddr library
 description:    Multiaddr is self-describing way to represent addresses that support any standard network protocol. Multiaddr has a binary packed format, and nice string representation. It is possible to encapsulate addresses within each other.
+category:       Data
 homepage:       https://github.com/MatrixAI/hs-multiaddr#readme
 bug-reports:    https://github.com/MatrixAI/hs-multiaddr/issues
 author:         CMCDragonkai,
