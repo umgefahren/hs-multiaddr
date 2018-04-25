@@ -1,14 +1,10 @@
-flags: {}
-nix:
-  enable: false
-  shell-file: shell.nix
-extra-package-dbs: []
+resolver: lts-11.6
 packages:
-- location: .
-- location:
-    git: git@github.com:MatrixAI/haskell-multihash.git
-    commit: abd0cffac2b66e658e9345437a03d31fe7779ddc 
-  extra-dep: true
+  - location: .
+  - location:
+      git: git@github.com:MatrixAI/hs-multihash.git
+      commit: a150c80297aad40938743aa9266b64fdd03ab704
+    extra-dep: true
 extra-deps:
-- base58-bytestring-0.1.0
-resolver: lts-9.4
+  - base58-bytestring-0.1.0
+  - sandi-0.4.2

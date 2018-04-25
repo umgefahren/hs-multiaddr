@@ -68,7 +68,7 @@ parseB = Multiaddr <$> some P.parseB
 
 -- first address encapsulates the second address
 encapsulate :: Multiaddr -> Multiaddr -> Multiaddr
-encapsulate m1 m2 = Multiaddr $ parts m1 ++ parts m2
+encapsulate = mappend
 
 -- first address is prefix removed from the second address
 decapsulate :: Multiaddr -> Multiaddr -> Maybe Multiaddr

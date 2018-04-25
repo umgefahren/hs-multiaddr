@@ -1,0 +1,53 @@
+name: hs-multiaddr
+version: 0.1.4
+github: 'MatrixAI/hs-multiaddr'
+synopsis: Multiaddr Library for LibP2P
+license: Apache-2.0
+author: ['CMCDragonkai', 'Quoc-An Ho']
+maintainer: 'roger.qiu@matrix.ai'
+copyright: '(c) Matrix AI 2017'
+description: Multiaddr is self-describing way to represent addresses that support any standard network protocol. Multiaddr has a binary packed format, and nice string representation. It is possible to encapsulate addresses within each other.
+
+extra-source-files:
+  - README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Data.Multiaddr
+    - Data.MultiaddrPart
+    - Data.Multiaddr.IPFS
+    - Data.Multiaddr.VarInt
+    - Data.Multiaddr.IPv4
+    - Data.Multiaddr.IPv6
+    - Data.Multiaddr.Onion
+    - Data.Multiaddr.Port
+    - Data.Multiaddr.UnixPath
+  dependencies:
+    - hs-multihash
+    - bytes >= 0.15 && < 0.16
+    - bytestring >= 0.10 && < 0.11
+    - cereal >= 0.5 && < 0.6
+    - filepath >= 1.4 && < 1.5
+    - iproute >= 1.7 && < 1.8
+    - sandi >= 0.4 && < 0.5
+
+tests:
+  hs-multiaddr-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - hs-multiaddr
+      - hs-multihash
+      - bytestring >= 0.10 && < 0.11
+      - either-unwrap >= 1.1 && < 1.2
+      - hspec >= 2.4 && < 2.5
+      - iproute >= 1.7 && < 1.8
+      - sandi >= 0.4 && < 0.5
