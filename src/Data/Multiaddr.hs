@@ -37,7 +37,7 @@ import Data.Serialize.Get (Get)
 import Data.List (isPrefixOf, find, filter)
 
 newtype Multiaddr = Multiaddr { parts :: [P.MultiaddrPart] }
-  deriving (Show, Eq, Monoid, Generic, Typeable)
+  deriving (Show, Eq, Semigroup, Monoid, Generic, Typeable)
 
 instance IsString Multiaddr where
   fromString s = either error id $ toMultiaddr s
