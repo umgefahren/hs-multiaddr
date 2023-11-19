@@ -1,8 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.21.2.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 97e59c09cade2c4a1e7309c30f9342103e5930d54a11d1a30ed5707426f7e3c7
 
 name:           hs-multiaddr
 version:        0.1.4
@@ -18,8 +18,6 @@ copyright:      (c) Matrix AI 2017
 license:        Apache-2.0
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
-
 extra-source-files:
     README.md
 
@@ -44,13 +42,13 @@ library
       src
   build-depends:
       base >=4.7 && <5
-    , bytes >=0.15 && <0.16
-    , bytestring >=0.10 && <0.11
-    , cereal >=0.5 && <0.6
-    , filepath >=1.4 && <1.5
+    , bytes ==0.17.*
+    , bytestring ==0.11.*
+    , cereal ==0.5.*
+    , filepath ==1.4.*
     , hs-multihash
-    , iproute >=1.7 && <1.8
-    , sandi >=0.4 && <0.5
+    , iproute ==1.7.*
+    , sandi ==0.5.*
   default-language: Haskell2010
 
 test-suite hs-multiaddr-test
@@ -63,11 +61,11 @@ test-suite hs-multiaddr-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , bytestring >=0.10 && <0.11
-    , either-unwrap >=1.1 && <1.2
+    , bytestring ==0.11.*
+    , either-unwrap ==1.1.*
     , hs-multiaddr
     , hs-multihash
-    , hspec >=2.4 && <2.5
-    , iproute >=1.7 && <1.8
-    , sandi >=0.4 && <0.5
+    , hspec ==2.10.*
+    , iproute ==1.7.*
+    , sandi ==0.5.*
   default-language: Haskell2010

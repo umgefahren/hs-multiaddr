@@ -1,10 +1,8 @@
-resolver: lts-11.6
+resolver: lts-21.21
 packages:
-  - location: .
-  - location:
-      git: git@github.com:MatrixAI/hs-multihash.git
-      commit: a150c80297aad40938743aa9266b64fdd03ab704
-    extra-dep: true
+  - .
 extra-deps:
   - base58-bytestring-0.1.0
-  - sandi-0.4.2
+  - sandi-0.5
+  - git: https://github.com/umgefahren/hs-multihash.git
+    commit: 1b769a2acb73e3e7841a5846bc0bc98c24b41756
